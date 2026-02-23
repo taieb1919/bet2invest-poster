@@ -1,0 +1,3 @@
+[submodule "jtdev-bet2invest-scraper"]
+	path = jtdev-bet2invest-scraper
+	url = https://github.com/taieb1919/jtdev-bet2invest-scraper
