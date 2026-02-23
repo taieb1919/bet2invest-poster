@@ -1,5 +1,7 @@
 using Bet2InvestPoster;
 using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Services;
+using JTDev.Bet2InvestScraper.Api;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Events;
@@ -41,6 +43,18 @@ builder.Services.Configure<PosterOptions>(
     builder.Configuration.GetSection(PosterOptions.SectionName));
 
 builder.Services.AddHostedService<Worker>();
+
+// Bet2InvestClient from the scraper submodule: Singleton — one instance shared across cycles.
+// Uses an adapter to bridge the scraper's IConsoleLogger to Microsoft.Extensions.Logging.
+builder.Services.AddSingleton<Bet2InvestClient>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<Bet2InvestOptions>>().Value;
+    var logger = sp.GetRequiredService<ILogger<Bet2InvestClient>>();
+    return new Bet2InvestClient(opts.ApiBase, opts.RequestDelayMs, new SerilogConsoleLoggerAdapter(logger));
+});
+
+// ExtendedBet2InvestClient: Scoped — one instance per execution cycle.
+builder.Services.AddScoped<IExtendedBet2InvestClient, ExtendedBet2InvestClient>();
 
 var host = builder.Build();
 

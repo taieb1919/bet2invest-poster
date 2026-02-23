@@ -20,4 +20,8 @@
   <ItemGroup>
     <ProjectReference Include="../../jtdev-bet2invest-scraper/JTDev.Bet2InvestScraper.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Bet2InvestPoster.Tests" />
+  </ItemGroup>
 </Project>

@@ -46,8 +46,8 @@ development_status:
   1-3-deploiement-vps-et-service-systemd: done
   epic-1-retrospective: done
 
-  epic-2: backlog
-  2-1-extended-bet2invest-client-authentification-et-wrapper: backlog
+  epic-2: in-progress
+  2-1-extended-bet2invest-client-authentification-et-wrapper: done
   2-2-lecture-des-tipsters: backlog
   2-3-recuperation-des-paris-a-venir: backlog
   epic-2-retrospective: optional
