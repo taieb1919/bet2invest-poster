@@ -41,7 +41,7 @@ story_location: .bmadOutput/implementation-artifacts
 
 development_status:
   epic-1: in-progress
-  1-1-initialisation-du-projet-worker-service: backlog
+  1-1-initialisation-du-projet-worker-service: done
   1-2-configuration-et-injection-de-dependances: backlog
   1-3-deploiement-vps-et-service-systemd: backlog
   epic-1-retrospective: optional

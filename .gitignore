@@ -1,0 +1,59 @@
+## .NET gitignore standard
+
+# Build outputs
+bin/
+obj/
+
+# Visual Studio files
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+
+# User-specific files
+*.rsuser
+*.dbmdl
+*.dbproj.schemaview
+*.jfm
+*.pfx
+*.publishsettings
+
+# Rider
+.idea/
+
+# VS Code
+.vscode/
+
+# NuGet packages
+*.nupkg
+*.snupkg
+[Pp]ackages/
+nuget.config
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# MSBuild binary log
+*.binlog
+
+# Test results
+TestResults/
+coverage/
+*.trx
+
+# Sensitive configuration
+appsettings.Development.json
+appsettings.*.json
+!appsettings.json
+**/Properties/launchSettings.json
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
