@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout (avec submodules)
+        uses: actions/checkout@v4
+        with:
+          # OBLIGATOIRE : le submodule jtdev-bet2invest-scraper doit être récupéré
+          submodules: recursive
+
+      - name: Setup .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore dependencies
+        run: dotnet restore Bet2InvestPoster.sln
+
+      - name: Build
+        run: dotnet build Bet2InvestPoster.sln --no-restore -c Release
+
+      - name: Test
+        run: dotnet test tests/Bet2InvestPoster.Tests --no-build -c Release --logger "trx;LogFileName=test-results.trx"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: '**/test-results.trx'
