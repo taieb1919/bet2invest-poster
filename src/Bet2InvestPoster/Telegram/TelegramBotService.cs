@@ -86,7 +86,7 @@ public class TelegramBotService : BackgroundService
         else
         {
             await bot.SendMessage(chatId,
-                "Commande inconnue. Commandes disponibles : /run, /status",
+                "Commande inconnue. Commandes disponibles : /run, /status, /start, /stop",
                 cancellationToken: ct);
         }
     }

@@ -63,6 +63,19 @@ public class SchedulerWorker : BackgroundService
             if (stoppingToken.IsCancellationRequested)
                 break;
 
+            // Attente que le scheduling soit activé (vérification toutes les 5s)
+            while (!_executionStateService.GetSchedulingEnabled() && !stoppingToken.IsCancellationRequested)
+            {
+                using (LogContext.PushProperty("Step", "Schedule"))
+                {
+                    _logger.LogDebug("Scheduling suspendu — vérification dans 5s");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(5), _timeProvider, stoppingToken);
+            }
+
+            if (stoppingToken.IsCancellationRequested)
+                break;
+
             using (LogContext.PushProperty("Step", "Schedule"))
             {
                 _logger.LogInformation("Déclenchement cycle planifié");

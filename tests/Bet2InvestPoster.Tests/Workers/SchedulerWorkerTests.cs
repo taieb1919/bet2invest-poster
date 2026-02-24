@@ -42,6 +42,8 @@ public class SchedulerWorkerTests
             SetNextRunCallCount++;
         }
         public void SetApiConnectionStatus(bool connected) { }
+        public bool GetSchedulingEnabled() => true;
+        public void SetSchedulingEnabled(bool enabled) { }
     }
 
     // Pass-through: executes the action once, no retry (for existing tests unrelated to Polly)
@@ -255,6 +257,99 @@ public class SchedulerWorkerTests
         await worker.StopAsync(CancellationToken.None);
 
         // Cycle never ran — cancelled while waiting for 24h delay
+        Assert.Equal(0, fakeCycle.RunCount);
+    }
+
+    // ─── SchedulingEnabled tests ──────────────────────────────────────────────
+
+    private class ControllableExecutionStateService : IExecutionStateService
+    {
+        private volatile bool _schedulingEnabled;
+        public DateTimeOffset? NextRunSet { get; private set; }
+        public int SetNextRunCallCount { get; private set; }
+
+        public ControllableExecutionStateService(bool schedulingEnabled = true)
+            => _schedulingEnabled = schedulingEnabled;
+
+        public ExecutionState GetState() => new(null, null, null, NextRunSet, null);
+        public void RecordSuccess(int publishedCount) { }
+        public void RecordFailure(string reason) { }
+        public void SetNextRun(DateTimeOffset nextRunAt) { NextRunSet = nextRunAt; SetNextRunCallCount++; }
+        public void SetApiConnectionStatus(bool connected) { }
+        public bool GetSchedulingEnabled() => _schedulingEnabled;
+        public void SetSchedulingEnabled(bool enabled) => _schedulingEnabled = enabled;
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenSchedulingDisabled_DoesNotRunCycle_UntilEnabled()
+    {
+        // Scheduling disabled at trigger time — worker should pause then run when re-enabled
+        var now = new DateTimeOffset(2026, 2, 25, 7, 59, 0, TimeSpan.Zero);
+        var fakeTime = new FakeTimeProvider(now);
+        var controllableState = new ControllableExecutionStateService(schedulingEnabled: false);
+        var fakeCycle = new FakePostingCycleService();
+
+        var services = new ServiceCollection();
+        services.AddScoped<IPostingCycleService>(_ => fakeCycle);
+        var sp = services.BuildServiceProvider();
+        var options = Options.Create(new PosterOptions { ScheduleTime = "08:00", MaxRetryCount = 3 });
+        var worker = new SchedulerWorker(
+            sp, controllableState,
+            new FakeResiliencePipelineService(),
+            new FakeNotificationService(),
+            options, fakeTime,
+            NullLogger<SchedulerWorker>.Instance);
+
+        using var cts = new CancellationTokenSource();
+        await worker.StartAsync(cts.Token);
+        await Task.Delay(50); // let worker start
+
+        // Trigger scheduled time
+        fakeTime.Advance(TimeSpan.FromMinutes(1));
+
+        // Wait a bit — cycle should NOT run because scheduling is disabled
+        await Task.Delay(200);
+        Assert.Equal(0, fakeCycle.RunCount);
+
+        // Enable scheduling — advance fake time to unblock polling delay, then cycle should run
+        controllableState.SetSchedulingEnabled(true);
+        fakeTime.Advance(TimeSpan.FromSeconds(5));
+        await fakeCycle.CycleExecuted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await worker.StopAsync(CancellationToken.None);
+
+        Assert.Equal(1, fakeCycle.RunCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenSchedulingDisabled_StopsOnCancellation()
+    {
+        var now = new DateTimeOffset(2026, 2, 25, 7, 59, 0, TimeSpan.Zero);
+        var fakeTime = new FakeTimeProvider(now);
+        var controllableState = new ControllableExecutionStateService(schedulingEnabled: false);
+        var fakeCycle = new FakePostingCycleService();
+
+        var services = new ServiceCollection();
+        services.AddScoped<IPostingCycleService>(_ => fakeCycle);
+        var sp = services.BuildServiceProvider();
+        var options = Options.Create(new PosterOptions { ScheduleTime = "08:00", MaxRetryCount = 3 });
+        var worker = new SchedulerWorker(
+            sp, controllableState,
+            new FakeResiliencePipelineService(),
+            new FakeNotificationService(),
+            options, fakeTime,
+            NullLogger<SchedulerWorker>.Instance);
+
+        using var cts = new CancellationTokenSource();
+        await worker.StartAsync(cts.Token);
+        await Task.Delay(50);
+
+        fakeTime.Advance(TimeSpan.FromMinutes(1)); // trigger — but disabled
+        await Task.Delay(100); // let worker enter the polling loop
+
+        await cts.CancelAsync();
+        await worker.StopAsync(CancellationToken.None);
+
         Assert.Equal(0, fakeCycle.RunCount);
     }
 }
