@@ -84,7 +84,7 @@ development_status:
   7-1-commandes-start-et-stop-controle-du-scheduling: done
   7-2-commande-history-historique-des-publications: done
   7-3-commande-schedule-configuration-horaire-via-telegram: done
-  epic-7-retrospective: optional
+  epic-7-retrospective: done
 
   epic-8: backlog
   8-1-commande-tipsters-consultation-de-la-liste: backlog
