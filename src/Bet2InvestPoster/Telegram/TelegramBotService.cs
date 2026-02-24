@@ -16,6 +16,7 @@ public class TelegramBotService : BackgroundService
     private readonly TelegramOptions _options;
     private readonly AuthorizationFilter _authFilter;
     private readonly IEnumerable<ICommandHandler> _handlers;
+    private readonly ITelegramBotClient _botClient;
     private readonly ILogger<TelegramBotService> _logger;
     private volatile int _retryDelaySeconds = 1;
 
@@ -23,25 +24,25 @@ public class TelegramBotService : BackgroundService
         IOptions<TelegramOptions> options,
         AuthorizationFilter authFilter,
         IEnumerable<ICommandHandler> handlers,
+        ITelegramBotClient botClient,
         ILogger<TelegramBotService> logger)
     {
         _options = options.Value;
         _authFilter = authFilter;
         _handlers = handlers;
+        _botClient = botClient;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var bot = new TelegramBotClient(_options.BotToken);
-
         var receiverOptions = new ReceiverOptions
         {
             AllowedUpdates = [UpdateType.Message],
             DropPendingUpdates = true
         };
 
-        bot.StartReceiving(
+        _botClient.StartReceiving(
             updateHandler: HandleUpdateAsync,
             errorHandler: HandleErrorAsync,
             receiverOptions: receiverOptions,

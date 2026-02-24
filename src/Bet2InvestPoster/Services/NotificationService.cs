@@ -1,0 +1,46 @@
+using Bet2InvestPoster.Configuration;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Serilog.Context;
+using Telegram.Bot;
+
+namespace Bet2InvestPoster.Services;
+
+public class NotificationService : INotificationService
+{
+    private readonly ITelegramBotClient _botClient;
+    private readonly long _chatId;
+    private readonly ILogger<NotificationService> _logger;
+
+    public NotificationService(
+        ITelegramBotClient botClient,
+        IOptions<TelegramOptions> options,
+        ILogger<NotificationService> logger)
+    {
+        _botClient = botClient;
+        _chatId = options.Value.AuthorizedChatId;
+        _logger = logger;
+    }
+
+    public async Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default)
+    {
+        var text = $"✅ {publishedCount} pronostics publiés avec succès.";
+
+        using (LogContext.PushProperty("Step", "Notify"))
+        {
+            _logger.LogInformation("Envoi notification succès — {Count} pronostics publiés", publishedCount);
+            await _botClient.SendMessage(_chatId, text, cancellationToken: ct);
+        }
+    }
+
+    public async Task NotifyFailureAsync(string reason, CancellationToken ct = default)
+    {
+        var text = $"❌ Échec — {reason}.";
+
+        using (LogContext.PushProperty("Step", "Notify"))
+        {
+            _logger.LogWarning("Envoi notification échec — {Reason}", reason);
+            await _botClient.SendMessage(_chatId, text, cancellationToken: ct);
+        }
+    }
+}

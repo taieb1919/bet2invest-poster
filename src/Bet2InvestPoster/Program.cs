@@ -8,6 +8,7 @@ using JTDev.Bet2InvestScraper.Api;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Events;
+using Telegram.Bot;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -79,6 +80,16 @@ builder.Services.AddScoped<IPostingCycleService, PostingCycleService>();
 
 // AuthorizationFilter: Singleton — filters authorized chat ID for Telegram commands.
 builder.Services.AddSingleton<AuthorizationFilter>();
+
+// ITelegramBotClient: Singleton — shared between TelegramBotService (polling) and NotificationService (outgoing).
+builder.Services.AddSingleton<ITelegramBotClient>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<TelegramOptions>>().Value;
+    return new TelegramBotClient(opts.BotToken);
+});
+
+// NotificationService: Singleton — sole service authorized to send outgoing Telegram messages.
+builder.Services.AddSingleton<INotificationService, NotificationService>();
 
 // ExecutionStateService: Singleton — tracks last/next run state for /status command.
 builder.Services.AddSingleton<IExecutionStateService, ExecutionStateService>();

@@ -101,20 +101,61 @@ public class PostingCycleServiceTests
         }
     }
 
+    // ─── Fakes (notification + state) ────────────────────────────────────────
+
+    internal sealed class FakeNotificationService : INotificationService
+    {
+        public int SuccessCallCount { get; private set; }
+        public int FailureCallCount { get; private set; }
+        public int? LastSuccessCount { get; private set; }
+        public string? LastFailureReason { get; private set; }
+
+        public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default)
+        {
+            SuccessCallCount++;
+            LastSuccessCount = publishedCount;
+            return Task.CompletedTask;
+        }
+
+        public Task NotifyFailureAsync(string reason, CancellationToken ct = default)
+        {
+            FailureCallCount++;
+            LastFailureReason = reason;
+            return Task.CompletedTask;
+        }
+    }
+
+    internal sealed class FakeExecutionStateService : IExecutionStateService
+    {
+        public int? LastSuccessCount { get; private set; }
+        public string? LastFailureReason { get; private set; }
+        public bool RecordSuccessCalled { get; private set; }
+        public bool RecordFailureCalled { get; private set; }
+
+        public ExecutionState GetState() => new(null, null, null, null);
+        public void RecordSuccess(int publishedCount) { RecordSuccessCalled = true; LastSuccessCount = publishedCount; }
+        public void RecordFailure(string reason) { RecordFailureCalled = true; LastFailureReason = reason; }
+        public void SetNextRun(DateTimeOffset nextRunAt) { }
+    }
+
     // ─── Helper ───────────────────────────────────────────────────────────────
 
     private static PostingCycleService CreateService(
-        FakeHistoryManager?      history  = null,
-        FakeTipsterService?      tipsters = null,
-        FakeUpcomingBetsFetcher? fetcher  = null,
-        FakeBetSelector?         selector = null,
-        FakeBetPublisher?        publisher = null)
+        FakeHistoryManager?      history      = null,
+        FakeTipsterService?      tipsters     = null,
+        FakeUpcomingBetsFetcher? fetcher      = null,
+        FakeBetSelector?         selector     = null,
+        FakeBetPublisher?        publisher    = null,
+        FakeNotificationService? notification = null,
+        FakeExecutionStateService? state      = null)
         => new PostingCycleService(
-            history   ?? new FakeHistoryManager(),
-            tipsters  ?? new FakeTipsterService(),
-            fetcher   ?? new FakeUpcomingBetsFetcher(),
-            selector  ?? new FakeBetSelector(),
-            publisher ?? new FakeBetPublisher(),
+            history      ?? new FakeHistoryManager(),
+            tipsters     ?? new FakeTipsterService(),
+            fetcher      ?? new FakeUpcomingBetsFetcher(),
+            selector     ?? new FakeBetSelector(),
+            publisher    ?? new FakeBetPublisher(),
+            notification ?? new FakeNotificationService(),
+            state        ?? new FakeExecutionStateService(),
             NullLogger<PostingCycleService>.Instance);
 
     // ─── Tests ────────────────────────────────────────────────────────────────
@@ -198,6 +239,8 @@ public class PostingCycleServiceTests
         services.AddScoped<IUpcomingBetsFetcher, UpcomingBetsFetcher>();
         services.AddScoped<IBetSelector, BetSelector>();
         services.AddScoped<IBetPublisher, BetPublisher>();
+        services.AddSingleton<INotificationService>(_ => new FakeNotificationService());
+        services.AddSingleton<IExecutionStateService, ExecutionStateService>();
         services.AddScoped<IPostingCycleService, PostingCycleService>();
 
         using var provider = services.BuildServiceProvider();

@@ -1,9 +1,12 @@
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Telegram;
+using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Tests.Telegram.Commands;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Telegram.Bot;
 
 namespace Bet2InvestPoster.Tests.Telegram;
 
@@ -76,6 +79,7 @@ public class AuthorizationFilterTests
             o.AuthorizedChatId = 1;
         });
         services.AddSingleton<AuthorizationFilter>();
+        services.AddSingleton<ITelegramBotClient>(_ => new FakeTelegramBotClient());
         services.AddHostedService<TelegramBotService>();
         services.AddLogging();
 

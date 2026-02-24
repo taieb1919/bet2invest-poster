@@ -6,10 +6,11 @@ using global::Telegram.Bot.Types;
 
 namespace Bet2InvestPoster.Tests.Telegram.Commands;
 
-/// <summary>Fake ITelegramBotClient that captures sent messages for assertions.</summary>
+/// <summary>Fake ITelegramBotClient that captures sent messages and chat IDs for assertions.</summary>
 internal class FakeTelegramBotClient : ITelegramBotClient
 {
     public List<string> SentMessages { get; } = [];
+    public List<long> SentChatIds { get; } = [];
 
     public long BotId => 1234567890;
     public bool LocalBotServer => false;
@@ -26,7 +27,10 @@ internal class FakeTelegramBotClient : ITelegramBotClient
         CancellationToken cancellationToken = default)
     {
         if (request is global::Telegram.Bot.Requests.SendMessageRequest sendReq)
+        {
             SentMessages.Add(sendReq.Text);
+            SentChatIds.Add(sendReq.ChatId.Identifier ?? 0);
+        }
 
         // Return default(TResponse) to avoid reliance on parameterless constructors
         return Task.FromResult(default(TResponse)!);

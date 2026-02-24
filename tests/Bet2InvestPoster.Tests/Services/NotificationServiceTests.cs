@@ -1,0 +1,97 @@
+using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Tests.Telegram.Commands;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
+namespace Bet2InvestPoster.Tests.Services;
+
+public class NotificationServiceTests
+{
+    private static NotificationService CreateService(
+        FakeTelegramBotClient botClient,
+        long chatId = 99999)
+    {
+        var options = Options.Create(new TelegramOptions
+        {
+            BotToken = "test-token",
+            AuthorizedChatId = chatId
+        });
+        return new NotificationService(
+            botClient,
+            options,
+            NullLogger<NotificationService>.Instance);
+    }
+
+    [Fact]
+    public async Task NotifySuccessAsync_SendsCorrectSuccessMessage()
+    {
+        var fake = new FakeTelegramBotClient();
+        var service = CreateService(fake);
+
+        await service.NotifySuccessAsync(10);
+
+        Assert.Single(fake.SentMessages);
+        Assert.Equal("✅ 10 pronostics publiés avec succès.", fake.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task NotifySuccessAsync_ZeroCount_SendsCorrectMessage()
+    {
+        var fake = new FakeTelegramBotClient();
+        var service = CreateService(fake);
+
+        await service.NotifySuccessAsync(0);
+
+        Assert.Single(fake.SentMessages);
+        Assert.Equal("✅ 0 pronostics publiés avec succès.", fake.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task NotifyFailureAsync_SendsCorrectFailureMessage()
+    {
+        var fake = new FakeTelegramBotClient();
+        var service = CreateService(fake);
+
+        await service.NotifyFailureAsync("InvalidOperationException");
+
+        Assert.Single(fake.SentMessages);
+        Assert.Equal("❌ Échec — InvalidOperationException.", fake.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task NotifySuccessAsync_SendsMessageToConfiguredChatId()
+    {
+        var fake = new FakeTelegramBotClient();
+        var service = CreateService(fake, chatId: 42000L);
+
+        await service.NotifySuccessAsync(5);
+
+        Assert.Single(fake.SentChatIds);
+        Assert.Equal(42000L, fake.SentChatIds[0]);
+    }
+
+    [Fact]
+    public async Task NotifyFailureAsync_SendsMessageToConfiguredChatId()
+    {
+        var fake = new FakeTelegramBotClient();
+        var service = CreateService(fake, chatId: 77777L);
+
+        await service.NotifyFailureAsync("TestException");
+
+        Assert.Single(fake.SentChatIds);
+        Assert.Equal(77777L, fake.SentChatIds[0]);
+    }
+
+    [Fact]
+    public async Task NotifyFailureAsync_EmptyReason_SendsMessage()
+    {
+        var fake = new FakeTelegramBotClient();
+        var service = CreateService(fake);
+
+        await service.NotifyFailureAsync("");
+
+        Assert.Single(fake.SentMessages);
+        Assert.Contains("Échec", fake.SentMessages[0]);
+    }
+}
