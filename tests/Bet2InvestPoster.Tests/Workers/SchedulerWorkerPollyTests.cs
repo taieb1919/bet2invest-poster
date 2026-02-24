@@ -60,6 +60,25 @@ public class SchedulerWorkerPollyTests
         public void RecordFailure(string reason) { }
         public void SetNextRun(DateTimeOffset nextRunAt) { }
         public void SetApiConnectionStatus(bool connected) { }
+        public bool GetSchedulingEnabled() => true;
+        public void SetSchedulingEnabled(bool enabled) { }
+    }
+
+    // ──────────────────────────────── SignalingFakeTimeProvider ────────────────────────────────
+
+    /// <summary>
+    /// FakeTimeProvider qui signale dès qu'un timer est créé (i.e. le worker a atteint son await Task.Delay).
+    /// Permet d'éliminer la race condition de Task.Delay(50) dans les tests.
+    /// </summary>
+    private class SignalingFakeTimeProvider(DateTimeOffset startTime) : FakeTimeProvider(startTime)
+    {
+        public TaskCompletionSource TimerRegistered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            TimerRegistered.TrySetResult();
+            return base.CreateTimer(callback, state, dueTime, period);
+        }
     }
 
     // ──────────────────────────────── Helpers ────────────────────────────────
@@ -103,14 +122,15 @@ public class SchedulerWorkerPollyTests
     {
         // 07:59 — schedule at 08:00 (1 minute away)
         var now = new DateTimeOffset(2026, 2, 25, 7, 59, 0, TimeSpan.Zero);
-        var fakeTime = new FakeTimeProvider(now);
+        var fakeTime = new SignalingFakeTimeProvider(now);
         // MaxRetryCount=3 → cycle called 3 times total (1 initial + 2 retries), all fail
         var cycleService = new FailingPostingCycleService { FailCount = int.MaxValue };
         var (worker, notification) = CreateWorker(fakeTime, cycleService, maxRetryCount: 3);
 
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
-        await Task.Delay(50); // let worker reach Task.Delay
+        // Attendre que le worker ait enregistré son délai dans FakeTimeProvider (signal déterministe)
+        await fakeTime.TimerRegistered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         fakeTime.Advance(TimeSpan.FromMinutes(1)); // trigger cycle
 
@@ -130,14 +150,15 @@ public class SchedulerWorkerPollyTests
     {
         // 07:59 — cycle fails once then succeeds on retry
         var now = new DateTimeOffset(2026, 2, 25, 7, 59, 0, TimeSpan.Zero);
-        var fakeTime = new FakeTimeProvider(now);
+        var fakeTime = new SignalingFakeTimeProvider(now);
         // FailCount=1 → fails 1st attempt, succeeds on 2nd
         var cycleService = new FailingPostingCycleService { FailCount = 1 };
         var (worker, notification) = CreateWorker(fakeTime, cycleService, maxRetryCount: 3);
 
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
-        await Task.Delay(50);
+        // Attendre que le worker ait enregistré son délai dans FakeTimeProvider (signal déterministe)
+        await fakeTime.TimerRegistered.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         fakeTime.Advance(TimeSpan.FromMinutes(1));
 
