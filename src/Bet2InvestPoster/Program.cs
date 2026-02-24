@@ -126,4 +126,9 @@ if (missingVars.Count > 0)
     throw new InvalidOperationException(
         $"Required environment variables not configured: {string.Join(", ", missingVars)}");
 
+// NFR8 : délai minimum 500ms entre requêtes API (rate limiting)
+if (b2iOpts.RequestDelayMs < 500)
+    throw new InvalidOperationException(
+        $"Bet2Invest:RequestDelayMs doit être >= 500ms (valeur actuelle : {b2iOpts.RequestDelayMs}ms)");
+
 host.Run();

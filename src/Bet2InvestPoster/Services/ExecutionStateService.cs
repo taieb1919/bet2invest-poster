@@ -3,7 +3,7 @@ namespace Bet2InvestPoster.Services;
 public class ExecutionStateService : IExecutionStateService
 {
     private readonly object _lock = new();
-    private ExecutionState _state = new(null, null, null, null);
+    private ExecutionState _state = new(null, null, null, null, null);
 
     public ExecutionState GetState()
     {
@@ -41,6 +41,14 @@ public class ExecutionStateService : IExecutionStateService
         lock (_lock)
         {
             _state = _state with { NextRunAt = nextRunAt };
+        }
+    }
+
+    public void SetApiConnectionStatus(bool connected)
+    {
+        lock (_lock)
+        {
+            _state = _state with { ApiConnected = connected };
         }
     }
 }

@@ -22,6 +22,10 @@ public class MessageFormatter : IMessageFormatter
             ? state.NextRunAt.Value.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss") + " UTC"
             : "Non planifié";
 
-        return $"📊 État du système\n• Dernière exécution : {lastRun}\n• Résultat : {result}\n• Prochain run : {nextRun}";
+        var apiStatus = state.ApiConnected.HasValue
+            ? (state.ApiConnected.Value ? "✅ Connecté" : "❌ Déconnecté")
+            : "— Inconnu";
+
+        return $"📊 État du système\n• Dernière exécution : {lastRun}\n• Résultat : {result}\n• Prochain run : {nextRun}\n• Connexion API : {apiStatus}";
     }
 }

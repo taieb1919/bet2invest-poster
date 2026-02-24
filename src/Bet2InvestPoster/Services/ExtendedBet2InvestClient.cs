@@ -166,8 +166,18 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
     /// </summary>
     private async Task EnsureAuthenticatedAsync(CancellationToken ct = default)
     {
-        if (!IsAuthenticated)
-            await LoginAsync(ct);
+        if (IsAuthenticated)
+        {
+            using (LogContext.PushProperty("Step", "Auth"))
+            {
+                _logger.LogInformation(
+                    "Token valide réutilisé — expiration dans {SecondsLeft}s",
+                    (int)(_tokenExpiresAt - DateTime.UtcNow).TotalSeconds);
+            }
+            return;
+        }
+
+        await LoginAsync(ct);
     }
 
     // ─── Tipster ID Resolution (GET /tipsters) ────────────────────

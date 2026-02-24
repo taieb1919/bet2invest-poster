@@ -16,13 +16,14 @@ public class StatusCommandHandlerTests
 
         public FakeExecutionStateService(ExecutionState? state = null)
         {
-            _state = state ?? new ExecutionState(null, null, null, null);
+            _state = state ?? new ExecutionState(null, null, null, null, null);
         }
 
         public ExecutionState GetState() => _state;
         public void RecordSuccess(int publishedCount) { }
         public void RecordFailure(string reason) { }
         public void SetNextRun(DateTimeOffset nextRunAt) { }
+        public void SetApiConnectionStatus(bool connected) { }
     }
 
     private static Message MakeMessage(string text = "/status") =>
@@ -53,7 +54,7 @@ public class StatusCommandHandlerTests
     [Fact]
     public async Task HandleAsync_NoHistory_SendsNoRunMessage()
     {
-        var handler = CreateHandler(new ExecutionState(null, null, null, null));
+        var handler = CreateHandler(new ExecutionState(null, null, null, null, null));
         var bot = new FakeTelegramBotClient();
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
@@ -66,7 +67,7 @@ public class StatusCommandHandlerTests
     public async Task HandleAsync_WithSuccessHistory_SendsSuccessMessage()
     {
         var handler = CreateHandler(
-            new ExecutionState(DateTimeOffset.UtcNow, true, "5 pronostic(s) publiés", null));
+            new ExecutionState(DateTimeOffset.UtcNow, true, "5 pronostic(s) publiés", null, true));
         var bot = new FakeTelegramBotClient();
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);

@@ -147,10 +147,11 @@ public class PostingCycleServiceTests
         public bool RecordSuccessCalled { get; private set; }
         public bool RecordFailureCalled { get; private set; }
 
-        public ExecutionState GetState() => new(null, null, null, null);
+        public ExecutionState GetState() => new(null, null, null, null, null);
         public void RecordSuccess(int publishedCount) { RecordSuccessCalled = true; LastSuccessCount = publishedCount; }
         public void RecordFailure(string reason) { RecordFailureCalled = true; LastFailureReason = reason; }
         public void SetNextRun(DateTimeOffset nextRunAt) { }
+        public void SetApiConnectionStatus(bool connected) { }
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────

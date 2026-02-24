@@ -11,6 +11,7 @@ public class HistoryManager : IHistoryManager
     private readonly string _historyPath;
     private readonly ILogger<HistoryManager> _logger;
     private readonly TimeProvider _timeProvider;
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
@@ -39,22 +40,30 @@ public class HistoryManager : IHistoryManager
     // L3: Duplicate betId guard
     public async Task RecordAsync(HistoryEntry entry, CancellationToken ct = default)
     {
-        using (LogContext.PushProperty("Step", "Publish"))
+        await _semaphore.WaitAsync(ct);
+        try
         {
-            var entries = await LoadEntriesAsync(ct);
-
-            if (entries.Any(e => string.Equals(e.DeduplicationKey, entry.DeduplicationKey, StringComparison.OrdinalIgnoreCase)))
+            using (LogContext.PushProperty("Step", "Publish"))
             {
-                _logger.LogWarning(
-                    "Pari déjà présent dans l'historique ({Key}), enregistrement ignoré", entry.DeduplicationKey);
-                return;
+                var entries = await LoadEntriesAsync(ct);
+
+                if (entries.Any(e => string.Equals(e.DeduplicationKey, entry.DeduplicationKey, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _logger.LogWarning(
+                        "Pari déjà présent dans l'historique ({Key}), enregistrement ignoré", entry.DeduplicationKey);
+                    return;
+                }
+
+                entries.Add(entry);
+                await SaveAtomicAsync(entries, ct);
+
+                _logger.LogInformation(
+                    "Paris enregistré dans l'historique : betId={BetId}", entry.BetId);
             }
-
-            entries.Add(entry);
-            await SaveAtomicAsync(entries, ct);
-
-            _logger.LogInformation(
-                "Paris enregistré dans l'historique : betId={BetId}", entry.BetId);
+        }
+        finally
+        {
+            _semaphore.Release();
         }
     }
 

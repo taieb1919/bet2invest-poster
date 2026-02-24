@@ -33,7 +33,7 @@ public class SchedulerWorkerTests
         public DateTimeOffset? NextRunSet { get; private set; }
         public int SetNextRunCallCount { get; private set; }
 
-        public ExecutionState GetState() => new(null, null, null, NextRunSet);
+        public ExecutionState GetState() => new(null, null, null, NextRunSet, null);
         public void RecordSuccess(int publishedCount) { }
         public void RecordFailure(string reason) { }
         public void SetNextRun(DateTimeOffset nextRunAt)
@@ -41,6 +41,7 @@ public class SchedulerWorkerTests
             NextRunSet = nextRunAt;
             SetNextRunCallCount++;
         }
+        public void SetApiConnectionStatus(bool connected) { }
     }
 
     // Pass-through: executes the action once, no retry (for existing tests unrelated to Polly)

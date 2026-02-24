@@ -10,7 +10,7 @@ public class MessageFormatterTests
     [Fact]
     public void FormatStatus_NoRun_ContainsAucune()
     {
-        var state = new ExecutionState(null, null, null, null);
+        var state = new ExecutionState(null, null, null, null, null);
 
         var result = _formatter.FormatStatus(state);
 
@@ -26,7 +26,8 @@ public class MessageFormatterTests
             DateTimeOffset.UtcNow,
             true,
             "5 pronostic(s) publiés",
-            null);
+            null,
+            true);
 
         var result = _formatter.FormatStatus(state);
 
@@ -42,7 +43,8 @@ public class MessageFormatterTests
             DateTimeOffset.UtcNow,
             false,
             "API indisponible",
-            null);
+            null,
+            false);
 
         var result = _formatter.FormatStatus(state);
 
@@ -54,7 +56,7 @@ public class MessageFormatterTests
     public void FormatStatus_WithNextRun_ContainsNextRunDate()
     {
         var nextRun = new DateTimeOffset(2026, 3, 1, 8, 0, 0, TimeSpan.Zero);
-        var state = new ExecutionState(null, null, null, nextRun);
+        var state = new ExecutionState(null, null, null, nextRun, null);
 
         var result = _formatter.FormatStatus(state);
 
@@ -65,7 +67,7 @@ public class MessageFormatterTests
     [Fact]
     public void FormatStatus_ContainsSystemHeader()
     {
-        var state = new ExecutionState(null, null, null, null);
+        var state = new ExecutionState(null, null, null, null, null);
 
         var result = _formatter.FormatStatus(state);
 

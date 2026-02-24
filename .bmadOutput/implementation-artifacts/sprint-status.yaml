@@ -71,6 +71,6 @@ development_status:
 
   epic-6: in-progress
   6-1-deploiement-vps-et-configuration-systemd: done
-  6-2-validation-du-cycle-de-publication-manuel: backlog
+  6-2-validation-du-cycle-de-publication-manuel: in-progress
   6-3-validation-du-scheduling-quotidien-et-de-la-resilience: backlog
   epic-6-retrospective: optional

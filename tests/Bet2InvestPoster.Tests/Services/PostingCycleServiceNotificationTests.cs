@@ -201,9 +201,10 @@ public class PostingCycleServiceNotificationTests
         private readonly List<string> _order;
         private readonly string _tag;
         public TrackingExecutionStateService(List<string> order, string tag) { _order = order; _tag = tag; }
-        public ExecutionState GetState() => new(null, null, null, null);
+        public ExecutionState GetState() => new(null, null, null, null, null);
         public void RecordSuccess(int publishedCount) => _order.Add(_tag);
         public void RecordFailure(string reason) => _order.Add(_tag);
         public void SetNextRun(DateTimeOffset nextRunAt) { }
+        public void SetApiConnectionStatus(bool connected) { }
     }
 }

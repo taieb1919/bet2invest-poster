@@ -51,8 +51,9 @@ public class PostingCycleService : IPostingCycleService
                 // 2. Lecture des tipsters (Step="Scrape" géré dans TipsterService)
                 var tipsters = await _tipsterService.LoadTipstersAsync(ct);
 
-                // 2b. Résolution des IDs numériques via l'API /tipsters
+                // 2b. Résolution des IDs numériques via l'API /tipsters (auth implicite)
                 await _client.ResolveTipsterIdsAsync(tipsters, ct);
+                _executionStateService.SetApiConnectionStatus(true);
 
                 // 3. Récupération des paris à venir (Step="Scrape" géré dans UpcomingBetsFetcher)
                 var candidates = await _upcomingBetsFetcher.FetchAllAsync(tipsters, ct);
@@ -81,6 +82,8 @@ public class PostingCycleService : IPostingCycleService
 
                 // Sanitize : utiliser le type d'exception, jamais ex.Message (peut contenir des credentials)
                 var sanitizedReason = ex.GetType().Name;
+                if (ex is Exceptions.Bet2InvestApiException)
+                    _executionStateService.SetApiConnectionStatus(false);
                 _executionStateService.RecordFailure(sanitizedReason);
                 await _notificationService.NotifyFailureAsync(sanitizedReason, ct);
 

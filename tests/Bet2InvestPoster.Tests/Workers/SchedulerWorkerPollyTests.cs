@@ -55,10 +55,11 @@ public class SchedulerWorkerPollyTests
 
     private class FakeExecutionStateService : IExecutionStateService
     {
-        public ExecutionState GetState() => new(null, null, null, null);
+        public ExecutionState GetState() => new(null, null, null, null, null);
         public void RecordSuccess(int publishedCount) { }
         public void RecordFailure(string reason) { }
         public void SetNextRun(DateTimeOffset nextRunAt) { }
+        public void SetApiConnectionStatus(bool connected) { }
     }
 
     // ──────────────────────────────── Helpers ────────────────────────────────
