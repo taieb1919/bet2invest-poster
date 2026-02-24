@@ -1,6 +1,6 @@
 # Story 6.1 : Déploiement VPS et Configuration Systemd
 
-Status: in-progress
+Status: done
 
 <!-- Note: Validation is optional. Run validate-create-story for quality check before dev-story. -->
 
@@ -41,44 +41,37 @@ so that le service tourne en continu et redémarre automatiquement en cas de cra
   - [x] 1.2 Vérifier que `./publish/Bet2InvestPoster.dll` et toutes les dépendances sont présentes
   - [x] 1.3 Vérifier que `appsettings.json` est inclus dans `./publish/` (credentials vides — env vars en prod)
 
-- [ ] Task 2 : Préparer le VPS (AC: #1, #2, #3)
-  - [ ] 2.1 Créer l'utilisateur système : `sudo useradd -r -s /usr/sbin/nologin bet2invest`
-  - [ ] 2.2 Créer le répertoire d'installation : `sudo mkdir -p /opt/bet2invest-poster/logs`
-  - [ ] 2.3 Installer le runtime .NET 9 si absent : `dotnet --info` pour vérifier
-  - [ ] 2.4 Copier les binaires publiés : `scp -r ./publish/* vps:/opt/bet2invest-poster/`
-  - [ ] 2.5 Copier `tipsters.json` dans `/opt/bet2invest-poster/`
-  - [ ] 2.6 Fixer les permissions : `sudo chown -R bet2invest:bet2invest /opt/bet2invest-poster`
+- [x] Task 2 : Préparer le VPS (AC: #1, #2, #3)
+  - [x] 2.1 Créer l'utilisateur système : `sudo useradd -r -s /usr/sbin/nologin bet2invest`
+  - [x] 2.2 Créer le répertoire d'installation : `sudo mkdir -p /opt/bet2invest-poster/logs`
+  - [x] 2.3 Installer le runtime .NET 9 si absent : `dotnet --info` → .NET SDK 9.0.310 déjà installé
+  - [x] 2.4 Copier les binaires publiés dans `/opt/bet2invest-poster/`
+  - [x] 2.5 Copier `tipsters.json` dans `/opt/bet2invest-poster/` (inclus dans publish automatiquement)
+  - [x] 2.6 Fixer les permissions : `sudo chown -R bet2invest:bet2invest /opt/bet2invest-poster`
 
-- [ ] Task 3 : Configurer les credentials (AC: #3)
-  - [ ] 3.1 Créer le répertoire : `sudo mkdir -p /etc/bet2invest-poster`
-  - [ ] 3.2 Créer `/etc/bet2invest-poster/env` avec les variables :
-    ```
-    Bet2Invest__Identifier=<email>
-    Bet2Invest__Password=<password>
-    Telegram__BotToken=<token>
-    Telegram__AuthorizedChatId=<chatid>
-    Poster__BankrollId=<bankrollid>
-    ```
-  - [ ] 3.3 Protéger le fichier : `sudo chmod 600 /etc/bet2invest-poster/env && sudo chown root:bet2invest /etc/bet2invest-poster/env`
+- [x] Task 3 : Configurer les credentials (AC: #3)
+  - [x] 3.1 Créer le répertoire : `sudo mkdir -p /etc/bet2invest-poster`
+  - [x] 3.2 Copier `.env` vers `/etc/bet2invest-poster/env` (5 variables configurées)
+  - [x] 3.3 Protéger le fichier : `chmod 600`, `chown root:bet2invest`
 
-- [ ] Task 4 : Installer et activer le service systemd (AC: #1, #2)
-  - [ ] 4.1 Copier le unit file : `sudo cp deploy/bet2invest-poster.service /etc/systemd/system/`
-  - [ ] 4.2 Recharger systemd : `sudo systemctl daemon-reload`
-  - [ ] 4.3 Activer au boot : `sudo systemctl enable bet2invest-poster`
-  - [ ] 4.4 Démarrer : `sudo systemctl start bet2invest-poster`
-  - [ ] 4.5 Vérifier : `systemctl status bet2invest-poster` → `active (running)`
+- [x] Task 4 : Installer et activer le service systemd (AC: #1, #2)
+  - [x] 4.1 Copier le unit file dans `/etc/systemd/system/`
+  - [x] 4.2 Recharger systemd : `sudo systemctl daemon-reload`
+  - [x] 4.3 Activer au boot : `sudo systemctl enable bet2invest-poster`
+  - [x] 4.4 Démarrer : `sudo systemctl start bet2invest-poster`
+  - [x] 4.5 Vérifier : `systemctl status bet2invest-poster` → `active (running)` ✅
 
-- [ ] Task 5 : Valider les logs et la sécurité (AC: #4)
-  - [ ] 5.1 Consulter les logs : `journalctl -u bet2invest-poster -f`
-  - [ ] 5.2 Vérifier le format structuré : timestamp, `[Step]`, message
-  - [ ] 5.3 Vérifier qu'aucun credential n'apparaît dans les logs
-  - [ ] 5.4 Vérifier que les logs fichier sont écrits dans `/opt/bet2invest-poster/logs/`
+- [x] Task 5 : Valider les logs et la sécurité (AC: #4)
+  - [x] 5.1 Consulter les logs : `journalctl -u bet2invest-poster`
+  - [x] 5.2 Format structuré vérifié : timestamp, `[Step]`, message ✅
+  - [x] 5.3 Aucun credential dans les logs (`NO_CREDENTIALS_FOUND`) ✅
+  - [x] 5.4 Logs fichier dans `/opt/bet2invest-poster/logs/bet2invest-poster-20260224.log` ✅
 
-- [ ] Task 6 : Valider le redémarrage automatique (AC: #5)
-  - [ ] 6.1 Trouver le PID : `systemctl show bet2invest-poster -p MainPID`
-  - [ ] 6.2 Tuer le processus : `sudo kill -9 <pid>`
-  - [ ] 6.3 Attendre 10 secondes et vérifier : `systemctl status bet2invest-poster` → `active (running)` (NFR1 : < 30s, RestartSec=5)
-  - [ ] 6.4 Vérifier dans les logs que le service a bien redémarré
+- [x] Task 6 : Valider le redémarrage automatique (AC: #5)
+  - [x] 6.1 PID identifié : 3538539
+  - [x] 6.2 Processus tué avec `kill -9`
+  - [x] 6.3 Service redémarré en ~5s (PID 3539546) — `active (running)` ✅ (NFR1 : < 30s)
+  - [x] 6.4 Logs confirment le redémarrage
 
 ## Dev Notes
 
@@ -236,22 +229,33 @@ claude-opus-4-6
 ### Debug Log References
 
 - `NETSDK1152` : Conflit `appsettings.json` entre le submodule scraper et le projet principal lors du `dotnet publish`. Le submodule a `CopyToOutputDirectory=PreserveNewest` sur son `appsettings.json`. Résolu avec `<ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>` dans le csproj principal — notre `appsettings.json` prend la priorité.
+- `203/EXEC` : Le service systemd échouait car `ExecStart=/usr/bin/dotnet` n'existait pas. Sur ce VPS, dotnet est à `/usr/local/bin/dotnet`. Corrigé dans le unit file.
+- Warning Telegram "Conflict: terminated by other getUpdates request" — un autre bot avec le même token tourne (instance dev). Normal en phase de validation.
 - 142/142 tests verts après modification du csproj — aucune régression.
 
 ### Completion Notes List
 
-- Task 1 : `dotnet publish` réussi après fix du conflit NETSDK1152. `./publish/` contient `Bet2InvestPoster.dll` + `appsettings.json` (credentials vides).
-- Tasks 2-6 : Procédures manuelles à exécuter sur le VPS par l'utilisateur. Les commandes sont documentées dans les Dev Notes.
+- AC#1 : `dotnet publish` réussi, binaires copiés dans `/opt/bet2invest-poster/`, service démarre via `systemctl start` sans erreur.
+- AC#2 : Service `enabled` au boot, `Restart=always` + `RestartSec=5` configuré.
+- AC#3 : Credentials chargés depuis `/etc/bet2invest-poster/env` (chmod 600, chown root:bet2invest). `systemctl status` → `active (running)`.
+- AC#4 : Logs Serilog structurés avec timestamp, `[Step]`, message. Aucun credential dans les logs. Logs fichier dans `/opt/bet2invest-poster/logs/`.
+- AC#5 : Processus tué avec `kill -9`, redémarré en ~5s (< 30s NFR1). Nouveau PID confirmé.
+- Fix csproj : `ErrorOnDuplicatePublishOutputFiles=false` pour conflit appsettings.json submodule.
+- Fix service : `ExecStart` corrigé vers `/usr/local/bin/dotnet`.
 
 ### File List
 
 **Modifiés :**
 - `src/Bet2InvestPoster/Bet2InvestPoster.csproj` (ajout `ErrorOnDuplicatePublishOutputFiles=false`)
+- `deploy/bet2invest-poster.service` (fix ExecStart → `/usr/local/bin/dotnet`, ajout `Poster__BankrollId` dans commentaires, suppression `ASPNETCORE_ENVIRONMENT`)
+- `src/Bet2InvestPoster/appsettings.json` (ajout placeholders `Password` et `BotToken` pour cohérence)
+- `.gitignore` (ajout `publish/`)
 - `.bmadOutput/implementation-artifacts/6-1-deploiement-vps-et-configuration-systemd.md` (ce fichier)
-- `.bmadOutput/implementation-artifacts/sprint-status.yaml` (statut → in-progress)
+- `.bmadOutput/implementation-artifacts/sprint-status.yaml` (statut → review)
 
 ### Change Log
 
 | Date | Auteur | Action |
 |---|---|---|
-| 2026-02-24 | claude-opus-4-6 (dev-story) | Task 1 complétée — publish réussi, fix NETSDK1152. Tasks 2-6 manuelles (VPS). |
+| 2026-02-24 | claude-opus-4-6 (dev-story) | Déploiement complet sur VPS — 6/6 tasks, 5/5 ACs validés. Fix NETSDK1152 + ExecStart path. Service active (running). |
+| 2026-02-24 | claude-opus-4-6 (code-review) | Review adversariale : 2 HIGH, 3 MEDIUM, 2 LOW. Fixes appliqués : H2 (Poster__BankrollId dans commentaires service), M1/M2 (placeholders Password/BotToken dans appsettings.json), M3 (sprint-status à commiter), L3 (suppression ASPNETCORE_ENVIRONMENT). H1 (ExecStart non commité) résolu par inclusion dans prochain commit. |
