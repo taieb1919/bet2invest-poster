@@ -16,12 +16,18 @@ public interface IExtendedBet2InvestClient
     Task LoginAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Returns the pending (upcoming) bets for the given tipster and whether the authenticated
-    /// user can see that tipster's bets (canSeeBets). Calls GET /v1/statistics/{tipsterId}.
+    /// Resolves tipster slugs (usernames) to numeric IDs via the /tipsters API.
+    /// Sets <see cref="Models.TipsterConfig.NumericId"/> on each resolved tipster.
+    /// </summary>
+    Task ResolveTipsterIdsAsync(List<Models.TipsterConfig> tipsters, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the pending (upcoming) bets for the given tipster numeric ID and whether the authenticated
+    /// user can see that tipster's bets (canSeeBets). Calls GET /v1/statistics/{numericId}.
     /// When canSeeBets is false the tipster is pro/restricted; bets will be empty.
     /// </summary>
-    Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(string tipsterId, CancellationToken ct = default);
+    Task<(bool CanSeeBets, List<Models.PendingBet> Bets)> GetUpcomingBetsAsync(int tipsterNumericId, CancellationToken ct = default);
 
     /// <summary>Publishes a bet order via POST /v1/bet-orders. Returns the order ID if available.</summary>
-    Task<string?> PublishBetAsync(BetOrderRequest bet, CancellationToken ct = default);
+    Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default);
 }

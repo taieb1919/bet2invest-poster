@@ -20,17 +20,23 @@ public class UpcomingBetsFetcher : IUpcomingBetsFetcher
         _logger = logger;
     }
 
-    public async Task<List<SettledBet>> FetchAllAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
+    public async Task<List<PendingBet>> FetchAllAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
     {
         using (LogContext.PushProperty("Step", "Scrape"))
         {
-            var allBets = new List<SettledBet>();
+            var allBets = new List<PendingBet>();
 
             foreach (var tipster in tipsters)
             {
+                if (tipster.NumericId == 0)
+                {
+                    _logger.LogWarning("Tipster {Name} ignoré : ID numérique non résolu", tipster.Name);
+                    continue;
+                }
+
                 // NFR8: 500ms delay is handled inside ExtendedBet2InvestClient.GetUpcomingBetsAsync.
                 // Bet2InvestApiException and OperationCanceledException propagate as-is (NFR9).
-                var (canSeeBets, bets) = await _client.GetUpcomingBetsAsync(tipster.Id, ct);
+                var (canSeeBets, bets) = await _client.GetUpcomingBetsAsync(tipster.NumericId, ct);
 
                 if (!canSeeBets)
                 {

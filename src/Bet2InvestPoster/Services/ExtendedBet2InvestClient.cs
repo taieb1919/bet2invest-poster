@@ -34,7 +34,26 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new NullableDecimalConverter(), new NullableIntConverter() }
+    };
+
+    /// <summary>Treats JSON null as 0m for non-nullable decimal properties (e.g. pending bets with null wonUnits).</summary>
+    private sealed class NullableDecimalConverter : JsonConverter<decimal>
+    {
+        public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => reader.TokenType == JsonTokenType.Null ? 0m : reader.GetDecimal();
+        public override void Write(Utf8JsonWriter writer, decimal value, JsonSerializerOptions options)
+            => writer.WriteNumberValue(value);
+    }
+
+    /// <summary>Treats JSON null as 0 for non-nullable int properties.</summary>
+    private sealed class NullableIntConverter : JsonConverter<int>
+    {
+        public override int Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+            => reader.TokenType == JsonTokenType.Null ? 0 : reader.GetInt32();
+        public override void Write(Utf8JsonWriter writer, int value, JsonSerializerOptions options)
+            => writer.WriteNumberValue(value);
     };
 
     // ─── Constructors ──────────────────────────────────────────────
@@ -151,9 +170,57 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
             await LoginAsync(ct);
     }
 
-    // ─── Upcoming Bets (GET /v1/statistics/{tipsterId}) ───────────
+    // ─── Tipster ID Resolution (GET /tipsters) ────────────────────
 
-    public async Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(string tipsterId, CancellationToken ct = default)
+    public async Task ResolveTipsterIdsAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
+    {
+        await EnsureAuthenticatedAsync(ct);
+
+        using (LogContext.PushProperty("Step", "Scrape"))
+        {
+            var slugsToResolve = tipsters
+                .Where(t => t.NumericId == 0)
+                .ToDictionary(t => t.Id, t => t, StringComparer.OrdinalIgnoreCase);
+
+            if (slugsToResolve.Count == 0) return;
+
+            _logger.LogInformation("Résolution des IDs numériques pour {Count} tipster(s)", slugsToResolve.Count);
+
+            for (var page = 0; slugsToResolve.Count > 0; page++)
+            {
+                await Task.Delay(_options.RequestDelayMs, ct);
+
+                var url = $"/tipsters?page={page}&mostBetSport=all&mostBetType=all&minBets=0&lastActivityMonths=12&orderBy=grade&orderDirection=DESC&proFirst=true";
+                var response = await _http.GetAsync(url, ct);
+
+                if (!response.IsSuccessStatusCode) break;
+
+                var data = await response.Content.ReadFromJsonAsync<TipstersResponse>(JsonOptions, ct);
+                if (data?.Tipsters == null || data.Tipsters.Count == 0) break;
+
+                foreach (var apiTipster in data.Tipsters)
+                {
+                    if (slugsToResolve.TryGetValue(apiTipster.Username, out var config))
+                    {
+                        config.NumericId = apiTipster.Id;
+                        _logger.LogInformation("Tipster {Name} résolu → numericId={NumericId}", config.Name, apiTipster.Id);
+                        slugsToResolve.Remove(apiTipster.Username);
+                    }
+                }
+
+                if (data.Pagination?.NextPage == null || data.Pagination.NextPage <= page) break;
+            }
+
+            foreach (var unresolved in slugsToResolve)
+            {
+                _logger.LogWarning("Tipster {Slug} non trouvé dans l'API — sera ignoré", unresolved.Key);
+            }
+        }
+    }
+
+    // ─── Upcoming Bets (GET /v1/statistics/{numericId}) ─────────
+
+    public async Task<(bool CanSeeBets, List<PendingBet> Bets)> GetUpcomingBetsAsync(int tipsterNumericId, CancellationToken ct = default)
     {
         await EnsureAuthenticatedAsync(ct);
 
@@ -162,7 +229,7 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
             // Rate limiting: 500ms minimum between API requests (NFR8).
             await Task.Delay(_options.RequestDelayMs, ct);
 
-            var url = $"/v1/statistics/{tipsterId}";
+            var url = $"/v1/statistics/{tipsterNumericId}";
             var response = await _http.GetAsync(url, ct);
 
             if (!response.IsSuccessStatusCode)
@@ -177,7 +244,7 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
 
             _logger.LogInformation(
                 "Paris à venir récupérés pour tipster {TipsterId} : {Count} paris en attente (canSeeBets={CanSeeBets})",
-                tipsterId, bets.Count, canSeeBets);
+                tipsterNumericId, bets.Count, canSeeBets);
 
             return (canSeeBets, bets);
         }
@@ -185,7 +252,7 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
 
     // ─── Publish Bet (POST /v1/bet-orders) ────────────────────────
 
-    public async Task<string?> PublishBetAsync(BetOrderRequest bet, CancellationToken ct = default)
+    public async Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
     {
         await EnsureAuthenticatedAsync(ct);
 
@@ -194,7 +261,7 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
             // Rate limiting: 500ms minimum between API requests (NFR8).
             await Task.Delay(_options.RequestDelayMs, ct);
 
-            const string url = "/v1/bet-orders";
+            var url = $"/v1/bankrolls/{bankrollId}/bets";
             var response = await _http.PostAsJsonAsync(url, bet, JsonOptions, ct);
 
             if (!response.IsSuccessStatusCode)
@@ -208,7 +275,7 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
 
             var result = await response.Content.ReadFromJsonAsync<BetOrderResponse>(JsonOptions, ct);
             _logger.LogInformation("Pari publié avec succès via {Url} — order {OrderId}", url, result?.Id);
-            return result?.Id;
+            return result?.Id?.ToString();
         }
     }
 
@@ -235,7 +302,7 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
     private class BetsData
     {
         [JsonPropertyName("pending")]
-        public List<SettledBet> Pending { get; set; } = [];
+        public List<PendingBet> Pending { get; set; } = [];
 
         [JsonPropertyName("pendingNumber")]
         public int PendingNumber { get; set; }
@@ -247,6 +314,30 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
     private class BetOrderResponse
     {
         [JsonPropertyName("id")]
-        public string? Id { get; set; }
+        public long? Id { get; set; }
+    }
+
+    private class TipstersResponse
+    {
+        [JsonPropertyName("tipsters")]
+        public List<ApiTipster> Tipsters { get; set; } = [];
+
+        [JsonPropertyName("pagination")]
+        public ApiPagination? Pagination { get; set; }
+    }
+
+    private class ApiTipster
+    {
+        [JsonPropertyName("id")]
+        public int Id { get; set; }
+
+        [JsonPropertyName("username")]
+        public string Username { get; set; } = string.Empty;
+    }
+
+    private class ApiPagination
+    {
+        [JsonPropertyName("nextPage")]
+        public int? NextPage { get; set; }
     }
 }

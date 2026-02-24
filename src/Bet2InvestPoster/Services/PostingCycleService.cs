@@ -5,6 +5,7 @@ namespace Bet2InvestPoster.Services;
 
 public class PostingCycleService : IPostingCycleService
 {
+    private readonly IExtendedBet2InvestClient _client;
     private readonly IHistoryManager _historyManager;
     private readonly ITipsterService _tipsterService;
     private readonly IUpcomingBetsFetcher _upcomingBetsFetcher;
@@ -15,6 +16,7 @@ public class PostingCycleService : IPostingCycleService
     private readonly ILogger<PostingCycleService> _logger;
 
     public PostingCycleService(
+        IExtendedBet2InvestClient client,
         IHistoryManager historyManager,
         ITipsterService tipsterService,
         IUpcomingBetsFetcher upcomingBetsFetcher,
@@ -24,6 +26,7 @@ public class PostingCycleService : IPostingCycleService
         IExecutionStateService executionStateService,
         ILogger<PostingCycleService> logger)
     {
+        _client               = client;
         _historyManager       = historyManager;
         _tipsterService       = tipsterService;
         _upcomingBetsFetcher  = upcomingBetsFetcher;
@@ -47,6 +50,9 @@ public class PostingCycleService : IPostingCycleService
 
                 // 2. Lecture des tipsters (Step="Scrape" géré dans TipsterService)
                 var tipsters = await _tipsterService.LoadTipstersAsync(ct);
+
+                // 2b. Résolution des IDs numériques via l'API /tipsters
+                await _client.ResolveTipsterIdsAsync(tipsters, ct);
 
                 // 3. Récupération des paris à venir (Step="Scrape" géré dans UpcomingBetsFetcher)
                 var candidates = await _upcomingBetsFetcher.FetchAllAsync(tipsters, ct);

@@ -3,45 +3,35 @@ using System.Text.Json.Serialization;
 namespace Bet2InvestPoster.Models;
 
 /// <summary>
-/// Body for POST /v1/bet-orders — publishes a pending bet.
+/// Body for POST /v1/bankrolls/{bankrollId}/bets — publishes a bet like the web UI.
 /// </summary>
 public class BetOrderRequest
 {
-    [JsonPropertyName("bankrollId")]
-    public string BankrollId { get; set; } = string.Empty;
-
     [JsonPropertyName("sportId")]
     public int SportId { get; set; }
 
-    [JsonPropertyName("eventId")]
-    public string? EventId { get; set; }
+    [JsonPropertyName("matchupId")]
+    public long MatchupId { get; set; }
+
+    [JsonPropertyName("marketKey")]
+    public string MarketKey { get; set; } = string.Empty;
+
+    [JsonPropertyName("designation")]
+    public string? Designation { get; set; }
 
     [JsonPropertyName("type")]
-    public string Type { get; set; } = string.Empty;
-
-    /// <summary>TEAM1 (home), TEAM2 (away), or null.</summary>
-    [JsonPropertyName("team")]
-    public string? Team { get; set; }
-
-    /// <summary>OVER, UNDER, or null.</summary>
-    [JsonPropertyName("side")]
-    public string? Side { get; set; }
-
-    [JsonPropertyName("handicap")]
-    public decimal? Handicap { get; set; }
-
-    [JsonPropertyName("price")]
-    public decimal Price { get; set; }
+    public string Type { get; set; } = "straight";
 
     [JsonPropertyName("units")]
     public decimal Units { get; set; }
 
-    [JsonPropertyName("periodNumber")]
-    public int PeriodNumber { get; set; }
+    [JsonPropertyName("price")]
+    public int Price { get; set; }
 
-    [JsonPropertyName("analysis")]
-    public string? Analysis { get; set; }
+    [JsonPropertyName("points")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public decimal? Points { get; set; }
 
-    [JsonPropertyName("isLive")]
-    public bool IsLive { get; set; }
+    [JsonPropertyName("invisible")]
+    public bool Invisible { get; set; }
 }

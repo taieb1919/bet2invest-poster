@@ -1,6 +1,7 @@
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,17 @@ public class PostingCycleServiceTests
 
     // ─── Fakes ────────────────────────────────────────────────────────────────
 
+    private sealed class FakeExtendedClient : IExtendedBet2InvestClient
+    {
+        public bool IsAuthenticated => true;
+        public Task LoginAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task ResolveTipsterIdsAsync(List<TipsterConfig> tipsters, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<(bool CanSeeBets, List<PendingBet> Bets)> GetUpcomingBetsAsync(int tipsterNumericId, CancellationToken ct = default)
+            => Task.FromResult((true, new List<PendingBet>()));
+        public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
+            => Task.FromResult<string?>(null);
+    }
+
     private sealed class FakeHistoryManager : IHistoryManager
     {
         private readonly List<string>? _callOrder;
@@ -24,8 +36,8 @@ public class PostingCycleServiceTests
 
         public FakeHistoryManager(List<string>? callOrder = null) => _callOrder = callOrder;
 
-        public Task<HashSet<int>> LoadPublishedIdsAsync(CancellationToken ct = default)
-            => Task.FromResult(new HashSet<int>());
+        public Task<HashSet<string>> LoadPublishedKeysAsync(CancellationToken ct = default)
+            => Task.FromResult(new HashSet<string>());
         public Task RecordAsync(HistoryEntry entry, CancellationToken ct = default)
             => Task.CompletedTask;
         public Task PurgeOldEntriesAsync(CancellationToken ct = default)
@@ -56,11 +68,11 @@ public class PostingCycleServiceTests
     {
         private readonly List<string>? _callOrder;
         public int CallCount { get; private set; }
-        public List<SettledBet> BetsToReturn { get; set; } = [];
+        public List<PendingBet> BetsToReturn { get; set; } = [];
 
         public FakeUpcomingBetsFetcher(List<string>? callOrder = null) => _callOrder = callOrder;
 
-        public Task<List<SettledBet>> FetchAllAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
+        public Task<List<PendingBet>> FetchAllAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
         {
             CallCount++;
             _callOrder?.Add("FetchAll");
@@ -72,11 +84,11 @@ public class PostingCycleServiceTests
     {
         private readonly List<string>? _callOrder;
         public int CallCount { get; private set; }
-        public List<SettledBet> SelectionToReturn { get; set; } = [];
+        public List<PendingBet> SelectionToReturn { get; set; } = [];
 
         public FakeBetSelector(List<string>? callOrder = null) => _callOrder = callOrder;
 
-        public Task<List<SettledBet>> SelectAsync(List<SettledBet> candidates, CancellationToken ct = default)
+        public Task<List<PendingBet>> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
         {
             CallCount++;
             _callOrder?.Add("Select");
@@ -88,11 +100,11 @@ public class PostingCycleServiceTests
     {
         private readonly List<string>? _callOrder;
         public int CallCount { get; private set; }
-        public List<SettledBet> LastSelected { get; private set; } = [];
+        public List<PendingBet> LastSelected { get; private set; } = [];
 
         public FakeBetPublisher(List<string>? callOrder = null) => _callOrder = callOrder;
 
-        public Task<int> PublishAllAsync(List<SettledBet> selected, CancellationToken ct = default)
+        public Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default)
         {
             CallCount++;
             LastSelected = selected;
@@ -152,6 +164,7 @@ public class PostingCycleServiceTests
         FakeNotificationService? notification = null,
         FakeExecutionStateService? state      = null)
         => new PostingCycleService(
+            new FakeExtendedClient(),
             history      ?? new FakeHistoryManager(),
             tipsters     ?? new FakeTipsterService(),
             fetcher      ?? new FakeUpcomingBetsFetcher(),
@@ -202,10 +215,10 @@ public class PostingCycleServiceTests
     [Fact]
     public async Task RunCycleAsync_PassesSelectedBetsToPublisher()
     {
-        var selectedBets = new List<SettledBet>
+        var selectedBets = new List<PendingBet>
         {
-            new SettledBet { Id = 10 },
-            new SettledBet { Id = 20 }
+            new PendingBet { Id = 10 },
+            new PendingBet { Id = 20 }
         };
         var selector  = new FakeBetSelector { SelectionToReturn = selectedBets };
         var publisher = new FakeBetPublisher();

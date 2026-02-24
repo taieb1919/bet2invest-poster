@@ -1,4 +1,4 @@
-using JTDev.Bet2InvestScraper.Models;
+using Bet2InvestPoster.Models;
 using Microsoft.Extensions.Logging;
 using Serilog.Context;
 
@@ -17,19 +17,26 @@ public class BetSelector : IBetSelector
         _logger = logger;
     }
 
-    public async Task<List<SettledBet>> SelectAsync(List<SettledBet> candidates, CancellationToken ct = default)
+    public async Task<List<PendingBet>> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
     {
         using (LogContext.PushProperty("Step", "Select"))
         {
-            // AC#1 : exclure les betIds déjà publiés
-            var publishedIds = await _historyManager.LoadPublishedIdsAsync(ct);
-            var available = candidates.Where(b => !publishedIds.Contains(b.Id)).ToList();
+            // AC#1 : exclure les paris déjà publiés (même match + marché + côté)
+            var publishedKeys = await _historyManager.LoadPublishedKeysAsync(ct);
+            var available = candidates
+                .Where(b => b.Market != null)
+                .Where(b =>
+                {
+                    var key = $"{b.Market!.MatchupId}|{b.Market.Key}|{DeriveDesignation(b)?.ToLowerInvariant()}";
+                    return !publishedKeys.Contains(key);
+                })
+                .ToList();
 
             // AC#2 : cible aléatoire parmi 5, 10, 15
             var targetCount = ValidCounts[Random.Shared.Next(ValidCounts.Length)];
 
             // AC#3 : si moins de candidats que la cible, retourner tout ce qui est disponible
-            List<SettledBet> selected;
+            List<PendingBet> selected;
             if (available.Count <= targetCount)
             {
                 selected = available;
@@ -46,5 +53,19 @@ public class BetSelector : IBetSelector
 
             return selected;
         }
+    }
+
+    private static string? DeriveDesignation(PendingBet bet)
+    {
+        if (!string.IsNullOrEmpty(bet.Team))
+            return bet.Team switch
+            {
+                "TEAM1" => "home",
+                "TEAM2" => "away",
+                _ => bet.Team.ToLowerInvariant()
+            };
+        if (!string.IsNullOrEmpty(bet.Side))
+            return bet.Side.ToLowerInvariant();
+        return null;
     }
 }

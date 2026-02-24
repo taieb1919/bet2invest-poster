@@ -1,6 +1,7 @@
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -10,15 +11,20 @@ namespace Bet2InvestPoster.Tests.Services;
 
 public class BetSelectorTests
 {
-    private static SettledBet MakeBet(int id) => new() { Id = id };
+    private static PendingBet MakeBet(int id) => new PendingBet
+    {
+        Id = id,
+        Team = "TEAM1",
+        Market = new PendingBetMarket { MatchupId = $"{id}", Key = "s;0;m" }
+    };
 
-    private static BetSelector CreateSelector(IEnumerable<int>? publishedIds = null)
-        => new(new FakeHistoryManager(publishedIds), NullLogger<BetSelector>.Instance);
+    private static BetSelector CreateSelector(IEnumerable<string>? publishedKeys = null)
+        => new(new FakeHistoryManager(publishedKeys), NullLogger<BetSelector>.Instance);
 
     [Fact]
     public async Task SelectAsync_ExcludesAlreadyPublishedBets()
     {
-        var selector = CreateSelector(publishedIds: [3, 5]);
+        var selector = CreateSelector(publishedKeys: ["3|s;0;m|home", "5|s;0;m|home"]);
         var candidates = Enumerable.Range(1, 20).Select(MakeBet).ToList(); // 20 candidats, 2 exclus = 18 disponibles
 
         var result = await selector.SelectAsync(candidates);
@@ -82,7 +88,7 @@ public class BetSelectorTests
     [Fact]
     public async Task SelectAsync_AllCandidatesAlreadyPublished_ReturnsEmptyList()
     {
-        var selector = CreateSelector(publishedIds: [1, 2, 3, 4, 5]);
+        var selector = CreateSelector(publishedKeys: ["1|s;0;m|home", "2|s;0;m|home", "3|s;0;m|home", "4|s;0;m|home", "5|s;0;m|home"]);
         var candidates = Enumerable.Range(1, 5).Select(MakeBet).ToList();
 
         var result = await selector.SelectAsync(candidates);
@@ -125,15 +131,15 @@ public class BetSelectorTests
     // ── Stub minimal — pas de framework de mocking ─────────────────────────────
     private sealed class FakeHistoryManager : IHistoryManager
     {
-        private readonly HashSet<int> _publishedIds;
+        private readonly HashSet<string> _publishedKeys;
 
-        public FakeHistoryManager(IEnumerable<int>? publishedIds = null)
+        public FakeHistoryManager(IEnumerable<string>? publishedKeys = null)
         {
-            _publishedIds = publishedIds?.ToHashSet() ?? [];
+            _publishedKeys = publishedKeys?.ToHashSet(StringComparer.OrdinalIgnoreCase) ?? new(StringComparer.OrdinalIgnoreCase);
         }
 
-        public Task<HashSet<int>> LoadPublishedIdsAsync(CancellationToken ct = default)
-            => Task.FromResult(_publishedIds);
+        public Task<HashSet<string>> LoadPublishedKeysAsync(CancellationToken ct = default)
+            => Task.FromResult(_publishedKeys);
 
         public Task RecordAsync(HistoryEntry entry, CancellationToken ct = default)
             => Task.CompletedTask;

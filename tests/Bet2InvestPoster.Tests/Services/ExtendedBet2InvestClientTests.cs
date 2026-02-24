@@ -63,7 +63,7 @@ public class ExtendedBet2InvestClientTests
     private static HttpResponseMessage PublishSuccess() =>
         new(HttpStatusCode.Created)
         {
-            Content = new StringContent(@"{""id"":""order-123""}", Encoding.UTF8, "application/json")
+            Content = new StringContent(@"{""id"":123}", Encoding.UTF8, "application/json")
         };
 
     // ─── EnsureAuthenticated Tests ─────────────────────────────────
@@ -83,7 +83,7 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        await client.GetUpcomingBetsAsync("tipster1");
+        await client.GetUpcomingBetsAsync(12345);
 
         Assert.True(loginCalled, "LoginAsync devrait être appelé quand non authentifié");
     }
@@ -104,9 +104,9 @@ public class ExtendedBet2InvestClientTests
 
         var client = CreateClient(handler);
         // First call triggers login.
-        await client.GetUpcomingBetsAsync("tipster1");
+        await client.GetUpcomingBetsAsync(12345);
         // Second call: token still valid → no re-login.
-        await client.GetUpcomingBetsAsync("tipster2");
+        await client.GetUpcomingBetsAsync(12346);
 
         Assert.Equal(1, loginCount);
     }
@@ -127,9 +127,9 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        await client.GetUpcomingBetsAsync("tipster1");
+        await client.GetUpcomingBetsAsync(12345);
         // Token was expired from the first login — second call must re-login.
-        await client.GetUpcomingBetsAsync("tipster2");
+        await client.GetUpcomingBetsAsync(12346);
 
         Assert.Equal(2, loginCount);
     }
@@ -146,7 +146,7 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync("tipster1");
+        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync(12345);
 
         Assert.True(canSeeBets);
         Assert.Empty(bets);
@@ -168,7 +168,7 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync("tipster1");
+        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync(12345);
 
         Assert.False(canSeeBets);
         Assert.Empty(bets);
@@ -187,7 +187,7 @@ public class ExtendedBet2InvestClientTests
 
         var sw = Stopwatch.StartNew();
         var client = CreateClient(handler, DefaultOptions(requestDelayMs: 200));
-        await client.GetUpcomingBetsAsync("tipster1");
+        await client.GetUpcomingBetsAsync(12345);
         sw.Stop();
 
         // Two rate-limit delays: login (200ms) + data (200ms) — 10ms tolerance each.
@@ -228,7 +228,7 @@ public class ExtendedBet2InvestClientTests
         var client = CreateClient(handler);
 
         var ex = await Assert.ThrowsAsync<Bet2InvestApiException>(
-            () => client.GetUpcomingBetsAsync("tipster1"));
+            () => client.GetUpcomingBetsAsync(12345));
         Assert.Equal(403, ex.HttpStatusCode);
     }
 
@@ -288,10 +288,10 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        var result = await client.PublishBetAsync(
-            new BetOrderRequest { BankrollId = "bank-1", Price = 1.5m, Units = 1m });
+        var result = await client.PublishBetAsync(1,
+            new BetOrderRequest { Units = 1m });
 
-        Assert.Equal("order-123", result);
+        Assert.Equal("123", result);
     }
 
     [Fact]
@@ -309,7 +309,7 @@ public class ExtendedBet2InvestClientTests
         var client = CreateClient(handler);
 
         var ex = await Assert.ThrowsAsync<PublishException>(
-            () => client.PublishBetAsync(new BetOrderRequest { BankrollId = "bank-1" }));
+            () => client.PublishBetAsync(1, new BetOrderRequest()));
         Assert.Equal(422, ex.HttpStatusCode);
     }
 
@@ -324,8 +324,8 @@ public class ExtendedBet2InvestClientTests
 
         var sw = Stopwatch.StartNew();
         var client = CreateClient(handler, DefaultOptions(requestDelayMs: 200));
-        await client.PublishBetAsync(
-            new BetOrderRequest { BankrollId = "bank-1", Price = 1.5m, Units = 1m });
+        await client.PublishBetAsync(1,
+            new BetOrderRequest { Units = 1m });
         sw.Stop();
 
         // Two rate-limit delays: login (200ms) + publish (200ms) — 10ms tolerance each.

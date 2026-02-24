@@ -2,6 +2,7 @@ using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Exceptions;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -15,11 +16,12 @@ public class UpcomingBetsFetcherTests
     private static UpcomingBetsFetcher CreateFetcher(FakeExtendedBet2InvestClient fake) =>
         new(fake, NullLogger<UpcomingBetsFetcher>.Instance);
 
+    private static int _nextNumericId = 1000;
+
     /// <summary>
-    /// Creates a TipsterConfig with a properly extracted slug Id.
-    /// TipsterConfig.Id is private-set via TryExtractSlug — must be called explicitly.
+    /// Creates a TipsterConfig with a properly extracted slug Id and a numeric ID.
     /// </summary>
-    private static TipsterConfig MakeTipster(string slug, string? name = null)
+    private static TipsterConfig MakeTipster(string slug, string? name = null, int numericId = 0)
     {
         var t = new TipsterConfig
         {
@@ -27,10 +29,11 @@ public class UpcomingBetsFetcherTests
             Name = name ?? slug
         };
         t.TryExtractSlug(out _);
+        t.NumericId = numericId > 0 ? numericId : Interlocked.Increment(ref _nextNumericId);
         return t;
     }
 
-    private static SettledBet MakeBet(int id) => new() { Id = id };
+    private static PendingBet MakeBet(int id) => new PendingBet { Id = id };
 
     // ─── 5.3: Happy path — multiple tipsters, aggregated bets ──────
 
@@ -38,10 +41,10 @@ public class UpcomingBetsFetcherTests
     public async Task FetchAllAsync_WithMultipleTipsters_AggregatesAllBets()
     {
         var fake = new FakeExtendedBet2InvestClient();
-        fake.Setup("Alice", canSeeBets: true, bets: [MakeBet(1), MakeBet(2)]);
-        fake.Setup("Bob", canSeeBets: true, bets: [MakeBet(3)]);
+        fake.Setup(101, canSeeBets: true, bets: [MakeBet(1), MakeBet(2)]);
+        fake.Setup(102, canSeeBets: true, bets: [MakeBet(3)]);
 
-        var tipsters = new List<TipsterConfig> { MakeTipster("Alice"), MakeTipster("Bob") };
+        var tipsters = new List<TipsterConfig> { MakeTipster("Alice", numericId: 101), MakeTipster("Bob", numericId: 102) };
 
         var result = await CreateFetcher(fake).FetchAllAsync(tipsters);
 
@@ -57,10 +60,10 @@ public class UpcomingBetsFetcherTests
     public async Task FetchAllAsync_TipsterWithCanSeeBetsFalse_IsIgnored()
     {
         var fake = new FakeExtendedBet2InvestClient();
-        fake.Setup("Free", canSeeBets: true,  bets: [MakeBet(1)]);
-        fake.Setup("Pro", canSeeBets: false, bets: [MakeBet(99)]);
+        fake.Setup(201, canSeeBets: true,  bets: [MakeBet(1)]);
+        fake.Setup(202, canSeeBets: false, bets: [MakeBet(99)]);
 
-        var tipsters = new List<TipsterConfig> { MakeTipster("Free"), MakeTipster("Pro") };
+        var tipsters = new List<TipsterConfig> { MakeTipster("Free", numericId: 201), MakeTipster("Pro", numericId: 202) };
 
         var result = await CreateFetcher(fake).FetchAllAsync(tipsters);
 
@@ -87,9 +90,9 @@ public class UpcomingBetsFetcherTests
     public async Task FetchAllAsync_TipsterWithZeroBets_ReturnsEmptyContribution()
     {
         var fake = new FakeExtendedBet2InvestClient();
-        fake.Setup("Empty", canSeeBets: true, bets: []);
+        fake.Setup(301, canSeeBets: true, bets: []);
 
-        var tipsters = new List<TipsterConfig> { MakeTipster("Empty") };
+        var tipsters = new List<TipsterConfig> { MakeTipster("Empty", numericId: 301) };
 
         var result = await CreateFetcher(fake).FetchAllAsync(tipsters);
 
@@ -103,15 +106,15 @@ public class UpcomingBetsFetcherTests
     public async Task FetchAllAsync_PropagatesBet2InvestApiException()
     {
         var fake = new FakeExtendedBet2InvestClient();
-        fake.SetupThrow("Tipster", new Bet2InvestApiException("/v1/statistics/Tipster", 503, "Service unavailable"));
+        fake.SetupThrow(401, new Bet2InvestApiException("/v1/statistics/401", 503, "Service unavailable"));
 
-        var tipsters = new List<TipsterConfig> { MakeTipster("Tipster") };
+        var tipsters = new List<TipsterConfig> { MakeTipster("Tipster", numericId: 401) };
 
         var ex = await Assert.ThrowsAsync<Bet2InvestApiException>(
             () => CreateFetcher(fake).FetchAllAsync(tipsters));
 
         Assert.Equal(503, ex.HttpStatusCode);
-        Assert.Equal("/v1/statistics/Tipster", ex.Endpoint);
+        Assert.Equal("/v1/statistics/401", ex.Endpoint);
     }
 
     // ─── 5.8: CancellationToken propagates ────────────────────────
@@ -121,9 +124,9 @@ public class UpcomingBetsFetcherTests
     {
         var cts = new CancellationTokenSource();
         var fake = new FakeExtendedBet2InvestClient();
-        fake.SetupCancelOn("Tipster", cts);
+        fake.SetupCancelOn(501, cts);
 
-        var tipsters = new List<TipsterConfig> { MakeTipster("Tipster") };
+        var tipsters = new List<TipsterConfig> { MakeTipster("Tipster", numericId: 501) };
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => CreateFetcher(fake).FetchAllAsync(tipsters, cts.Token));
@@ -156,10 +159,10 @@ public class UpcomingBetsFetcherTests
     public async Task FetchAllAsync_AllTipstersProOrRestricted_ReturnsEmptyList()
     {
         var fake = new FakeExtendedBet2InvestClient();
-        fake.Setup("Pro1", canSeeBets: false, bets: [MakeBet(10)]);
-        fake.Setup("Pro2", canSeeBets: false, bets: [MakeBet(20)]);
+        fake.Setup(601, canSeeBets: false, bets: [MakeBet(10)]);
+        fake.Setup(602, canSeeBets: false, bets: [MakeBet(20)]);
 
-        var tipsters = new List<TipsterConfig> { MakeTipster("Pro1"), MakeTipster("Pro2") };
+        var tipsters = new List<TipsterConfig> { MakeTipster("Pro1", numericId: 601), MakeTipster("Pro2", numericId: 602) };
 
         var result = await CreateFetcher(fake).FetchAllAsync(tipsters);
 
@@ -173,10 +176,10 @@ public class UpcomingBetsFetcherTests
     public async Task FetchAllAsync_SecondTipsterFails_ExceptionPropagatesPartialResultsLost()
     {
         var fake = new FakeExtendedBet2InvestClient();
-        fake.Setup("OK", canSeeBets: true, bets: [MakeBet(1), MakeBet(2)]);
-        fake.SetupThrow("Fail", new Bet2InvestApiException("/v1/statistics/Fail", 500, "Server error"));
+        fake.Setup(701, canSeeBets: true, bets: [MakeBet(1), MakeBet(2)]);
+        fake.SetupThrow(702, new Bet2InvestApiException("/v1/statistics/702", 500, "Server error"));
 
-        var tipsters = new List<TipsterConfig> { MakeTipster("OK"), MakeTipster("Fail") };
+        var tipsters = new List<TipsterConfig> { MakeTipster("OK", numericId: 701), MakeTipster("Fail", numericId: 702) };
 
         var ex = await Assert.ThrowsAsync<Bet2InvestApiException>(
             () => CreateFetcher(fake).FetchAllAsync(tipsters));
@@ -189,46 +192,49 @@ public class UpcomingBetsFetcherTests
 
     private class FakeExtendedBet2InvestClient : IExtendedBet2InvestClient
     {
-        private readonly Dictionary<string, (bool canSeeBets, List<SettledBet> bets)> _responses = new();
-        private readonly Dictionary<string, Exception> _throws = new();
-        private readonly Dictionary<string, CancellationTokenSource> _cancelSources = new();
+        private readonly Dictionary<int, (bool canSeeBets, List<PendingBet> bets)> _responses = new();
+        private readonly Dictionary<int, Exception> _throws = new();
+        private readonly Dictionary<int, CancellationTokenSource> _cancelSources = new();
 
         public bool IsAuthenticated => true;
         public int CallCount { get; private set; }
 
-        public void Setup(string tipsterId, bool canSeeBets, List<SettledBet> bets)
-            => _responses[tipsterId] = (canSeeBets, bets);
+        public void Setup(int numericId, bool canSeeBets, List<PendingBet> bets)
+            => _responses[numericId] = (canSeeBets, bets);
 
-        public void SetupThrow(string tipsterId, Exception ex)
-            => _throws[tipsterId] = ex;
+        public void SetupThrow(int numericId, Exception ex)
+            => _throws[numericId] = ex;
 
-        public void SetupCancelOn(string tipsterId, CancellationTokenSource cts)
-            => _cancelSources[tipsterId] = cts;
+        public void SetupCancelOn(int numericId, CancellationTokenSource cts)
+            => _cancelSources[numericId] = cts;
 
         public Task LoginAsync(CancellationToken ct = default) => Task.CompletedTask;
 
-        public Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(
-            string tipsterId, CancellationToken ct = default)
+        public Task ResolveTipsterIdsAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
+            => Task.CompletedTask;
+
+        public Task<(bool CanSeeBets, List<PendingBet> Bets)> GetUpcomingBetsAsync(
+            int tipsterNumericId, CancellationToken ct = default)
         {
             CallCount++;
 
-            if (_cancelSources.TryGetValue(tipsterId, out var cts))
+            if (_cancelSources.TryGetValue(tipsterNumericId, out var cts))
             {
                 cts.Cancel();
                 ct.ThrowIfCancellationRequested();
             }
 
-            if (_throws.TryGetValue(tipsterId, out var ex))
+            if (_throws.TryGetValue(tipsterNumericId, out var ex))
                 throw ex;
 
-            if (_responses.TryGetValue(tipsterId, out var response))
+            if (_responses.TryGetValue(tipsterNumericId, out var response))
                 return Task.FromResult(response);
 
             throw new InvalidOperationException(
-                $"FakeExtendedBet2InvestClient: no setup for tipsterId={tipsterId}. Call Setup() first.");
+                $"FakeExtendedBet2InvestClient: no setup for numericId={tipsterNumericId}. Call Setup() first.");
         }
 
-        public Task<string?> PublishBetAsync(BetOrderRequest bet, CancellationToken ct = default)
+        public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
     }
 }

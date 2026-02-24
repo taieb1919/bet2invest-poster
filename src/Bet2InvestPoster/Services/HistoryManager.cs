@@ -29,11 +29,10 @@ public class HistoryManager : IHistoryManager
             Directory.CreateDirectory(dir);
     }
 
-    // M1: Delegate to LoadEntriesAsync to avoid duplication
-    public async Task<HashSet<int>> LoadPublishedIdsAsync(CancellationToken ct = default)
+    public async Task<HashSet<string>> LoadPublishedKeysAsync(CancellationToken ct = default)
     {
         var entries = await LoadEntriesAsync(ct);
-        return entries.Select(e => e.BetId).ToHashSet();
+        return entries.Select(e => e.DeduplicationKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     // M3: LogContext scope wraps entire operation
@@ -44,10 +43,10 @@ public class HistoryManager : IHistoryManager
         {
             var entries = await LoadEntriesAsync(ct);
 
-            if (entries.Any(e => e.BetId == entry.BetId))
+            if (entries.Any(e => string.Equals(e.DeduplicationKey, entry.DeduplicationKey, StringComparison.OrdinalIgnoreCase)))
             {
                 _logger.LogWarning(
-                    "betId={BetId} déjà présent dans l'historique, enregistrement ignoré", entry.BetId);
+                    "Pari déjà présent dans l'historique ({Key}), enregistrement ignoré", entry.DeduplicationKey);
                 return;
             }
 

@@ -21,6 +21,13 @@ public class TipsterConfig
     public string Id { get; private set; } = string.Empty;
 
     /// <summary>
+    /// Numeric user ID resolved from the API. Required for /v1/statistics/{numericId}.
+    /// Set by <see cref="IExtendedBet2InvestClient.ResolveTipsterIdsAsync"/>.
+    /// </summary>
+    [JsonIgnore]
+    public int NumericId { get; set; }
+
+    /// <summary>
     /// Attempts to extract the tipster slug from the URL.
     /// Sets <see cref="Id"/> and returns it via <paramref name="slug"/> on success.
     /// Supports: /tipsters/performance-stats/{slug}

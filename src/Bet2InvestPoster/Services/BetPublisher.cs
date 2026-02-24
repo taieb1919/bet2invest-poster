@@ -1,6 +1,6 @@
 using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Exceptions;
 using Bet2InvestPoster.Models;
-using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog.Context;
@@ -26,7 +26,7 @@ public class BetPublisher : IBetPublisher
         _logger = logger;
     }
 
-    public async Task<int> PublishAllAsync(List<SettledBet> selected, CancellationToken ct = default)
+    public async Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default)
     {
         using (LogContext.PushProperty("Step", "Publish"))
         {
@@ -39,24 +39,50 @@ public class BetPublisher : IBetPublisher
             int published = 0;
             foreach (var bet in selected)
             {
+                if (bet.Market == null)
+                {
+                    _logger.LogWarning("Bet#{BetId} ignoré : market absent", bet.Id);
+                    continue;
+                }
+
+                var designation = DeriveDesignation(bet);
+
+                // Lookup current market price matching the designation
+                var marketPrice = bet.Market.Prices
+                    .FirstOrDefault(p => string.Equals(p.Designation, designation, StringComparison.OrdinalIgnoreCase));
+
+                if (marketPrice == null)
+                {
+                    _logger.LogWarning(
+                        "Bet#{BetId} ignoré : prix marché introuvable pour designation={Designation}",
+                        bet.Id, designation);
+                    continue;
+                }
+
                 var request = new BetOrderRequest
                 {
-                    BankrollId   = _options.BankrollId,
                     SportId      = bet.Sport?.Id ?? 0,
-                    EventId      = bet.Event?.Slug,
-                    Type         = bet.Type,
-                    Team         = bet.Team,
-                    Side         = bet.Side,
-                    Handicap     = bet.Handicap,
-                    Price        = bet.Price,
-                    Units        = bet.Units,
-                    PeriodNumber = bet.PeriodNumber,
-                    Analysis     = bet.Analysis,
-                    IsLive       = bet.IsLive
+                    MatchupId    = long.Parse(bet.Market.MatchupId),
+                    MarketKey    = bet.Market.Key,
+                    Designation  = designation,
+                    Type         = "straight",
+                    Units        = 1m,
+                    Price        = marketPrice.Price,
+                    Points       = marketPrice.Points,
+                    Invisible    = false
                 };
 
-                // PublishBetAsync gère le délai 500ms (NFR8) — ne pas rajouter Task.Delay ici
-                await _client.PublishBetAsync(request, ct);
+                var bankrollId = int.Parse(_options.BankrollId);
+                try
+                {
+                    // PublishBetAsync gère le délai 500ms (NFR8) — ne pas rajouter Task.Delay ici
+                    await _client.PublishBetAsync(bankrollId, request, ct);
+                }
+                catch (PublishException pex)
+                {
+                    _logger.LogWarning("Bet#{BetId} publication échouée ({StatusCode}), skip", bet.Id, pex.HttpStatusCode);
+                    continue;
+                }
 
                 var description = bet.Event != null
                     ? $"{bet.Event.Home} vs {bet.Event.Away}"
@@ -65,6 +91,9 @@ public class BetPublisher : IBetPublisher
                 await _historyManager.RecordAsync(new HistoryEntry
                 {
                     BetId            = bet.Id,
+                    MatchupId        = bet.Market.MatchupId,
+                    MarketKey        = bet.Market.Key,
+                    Designation      = designation,
                     PublishedAt      = DateTime.UtcNow,
                     MatchDescription = description,
                     TipsterUrl       = null
@@ -79,5 +108,29 @@ public class BetPublisher : IBetPublisher
 
             return published;
         }
+    }
+
+    /// <summary>
+    /// Maps bet team/side to the API designation value used by the web UI.
+    /// TEAM1 → home, TEAM2 → away, OVER → over, UNDER → under.
+    /// </summary>
+    private static string? DeriveDesignation(PendingBet bet)
+    {
+        if (!string.IsNullOrEmpty(bet.Team))
+        {
+            return bet.Team switch
+            {
+                "TEAM1" => "home",
+                "TEAM2" => "away",
+                _ => bet.Team.ToLowerInvariant()
+            };
+        }
+
+        if (!string.IsNullOrEmpty(bet.Side))
+        {
+            return bet.Side.ToLowerInvariant(); // OVER → over, UNDER → under
+        }
+
+        return null;
     }
 }

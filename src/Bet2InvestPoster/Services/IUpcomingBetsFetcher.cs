@@ -16,5 +16,5 @@ public interface IUpcomingBetsFetcher
     /// the aggregated list of candidate bets. Tipsters with canSeeBets=false are skipped
     /// with a warning log (FR6 level-2 filter). Exceptions from the API propagate as-is.
     /// </summary>
-    Task<List<SettledBet>> FetchAllAsync(List<TipsterConfig> tipsters, CancellationToken ct = default);
+    Task<List<PendingBet>> FetchAllAsync(List<TipsterConfig> tipsters, CancellationToken ct = default);
 }

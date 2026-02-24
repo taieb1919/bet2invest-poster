@@ -1,4 +1,6 @@
+using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using static Bet2InvestPoster.Tests.Services.PostingCycleServiceTests;
@@ -10,10 +12,21 @@ public class PostingCycleServiceNotificationTests
 {
     // ─── Pipeline fakes (minimal versions without callOrder tracking) ──────
 
+    private sealed class SimpleExtendedClient : IExtendedBet2InvestClient
+    {
+        public bool IsAuthenticated => true;
+        public Task LoginAsync(CancellationToken ct = default) => Task.CompletedTask;
+        public Task ResolveTipsterIdsAsync(List<TipsterConfig> tipsters, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<(bool CanSeeBets, List<PendingBet> Bets)> GetUpcomingBetsAsync(int tipsterNumericId, CancellationToken ct = default)
+            => Task.FromResult((true, new List<PendingBet>()));
+        public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
+            => Task.FromResult<string?>(null);
+    }
+
     private sealed class SimpleHistoryManager : IHistoryManager
     {
-        public Task<HashSet<int>> LoadPublishedIdsAsync(CancellationToken ct = default)
-            => Task.FromResult(new HashSet<int>());
+        public Task<HashSet<string>> LoadPublishedKeysAsync(CancellationToken ct = default)
+            => Task.FromResult(new HashSet<string>());
         public Task RecordAsync(Models.HistoryEntry entry, CancellationToken ct = default)
             => Task.CompletedTask;
         public Task PurgeOldEntriesAsync(CancellationToken ct = default)
@@ -28,14 +41,14 @@ public class PostingCycleServiceNotificationTests
 
     private sealed class SimpleUpcomingBetsFetcher : IUpcomingBetsFetcher
     {
-        public Task<List<SettledBet>> FetchAllAsync(List<Models.TipsterConfig> tipsters, CancellationToken ct = default)
-            => Task.FromResult(new List<SettledBet>());
+        public Task<List<PendingBet>> FetchAllAsync(List<Models.TipsterConfig> tipsters, CancellationToken ct = default)
+            => Task.FromResult(new List<PendingBet>());
     }
 
     private sealed class SimpleBetSelector : IBetSelector
     {
-        public Task<List<SettledBet>> SelectAsync(List<SettledBet> candidates, CancellationToken ct = default)
-            => Task.FromResult(new List<SettledBet>());
+        public Task<List<PendingBet>> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
+            => Task.FromResult(new List<PendingBet>());
     }
 
     private sealed class ThrowingBetPublisher : IBetPublisher
@@ -44,7 +57,7 @@ public class PostingCycleServiceNotificationTests
         public bool ShouldThrow { get; set; }
         public Exception? ExceptionToThrow { get; set; }
 
-        public Task<int> PublishAllAsync(List<SettledBet> selected, CancellationToken ct = default)
+        public Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default)
         {
             if (ShouldThrow)
                 throw ExceptionToThrow ?? new InvalidOperationException("Simulated failure");
@@ -62,6 +75,7 @@ public class PostingCycleServiceNotificationTests
         var publisher = new ThrowingBetPublisher { PublishedCount = publishedCount, ShouldThrow = shouldThrow, ExceptionToThrow = exception };
 
         var service = new PostingCycleService(
+            new SimpleExtendedClient(),
             new SimpleHistoryManager(),
             new SimpleTipsterService(),
             new SimpleUpcomingBetsFetcher(),
@@ -108,6 +122,7 @@ public class PostingCycleServiceNotificationTests
         var trackingState = new TrackingExecutionStateService(callOrder, "Record");
 
         var service = new PostingCycleService(
+            new SimpleExtendedClient(),
             new SimpleHistoryManager(),
             new SimpleTipsterService(),
             new SimpleUpcomingBetsFetcher(),

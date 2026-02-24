@@ -1,4 +1,4 @@
-using JTDev.Bet2InvestScraper.Models;
+using Bet2InvestPoster.Models;
 
 namespace Bet2InvestPoster.Services;
 
@@ -9,5 +9,5 @@ public interface IBetSelector
     /// 5, 10, or 15 from the remaining candidates. Returns all available if fewer than target.
     /// Logs result with Step="Select".
     /// </summary>
-    Task<List<SettledBet>> SelectAsync(List<SettledBet> candidates, CancellationToken ct = default);
+    Task<List<PendingBet>> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default);
 }

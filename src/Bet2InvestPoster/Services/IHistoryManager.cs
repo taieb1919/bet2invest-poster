@@ -5,10 +5,10 @@ namespace Bet2InvestPoster.Services;
 public interface IHistoryManager
 {
     /// <summary>
-    /// Loads all betIds already published from history.json.
+    /// Loads all deduplication keys (matchupId|marketKey|designation) already published.
     /// Returns an empty HashSet if the file does not exist.
     /// </summary>
-    Task<HashSet<int>> LoadPublishedIdsAsync(CancellationToken ct = default);
+    Task<HashSet<string>> LoadPublishedKeysAsync(CancellationToken ct = default);
 
     /// <summary>
     /// Atomically appends an entry to history.json using write-to-temp + rename (NFR4).

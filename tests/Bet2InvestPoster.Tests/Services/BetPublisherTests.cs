@@ -2,6 +2,7 @@ using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Exceptions;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -20,18 +21,23 @@ public class BetPublisherTests
         public bool ShouldFail { get; set; }
         public int PublishCallCount { get; private set; }
         public List<BetOrderRequest> PublishedRequests { get; } = [];
+        public List<int> PublishedBankrollIds { get; } = [];
 
         public Task LoginAsync(CancellationToken ct = default) => Task.CompletedTask;
 
-        public Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(
-            string tipsterId, CancellationToken ct = default)
-            => Task.FromResult((true, new List<SettledBet>()));
+        public Task ResolveTipsterIdsAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
+            => Task.CompletedTask;
 
-        public Task<string?> PublishBetAsync(BetOrderRequest bet, CancellationToken ct = default)
+        public Task<(bool CanSeeBets, List<PendingBet> Bets)> GetUpcomingBetsAsync(
+            int tipsterNumericId, CancellationToken ct = default)
+            => Task.FromResult((true, new List<PendingBet>()));
+
+        public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
         {
             PublishCallCount++;
             PublishedRequests.Add(bet);
-            if (ShouldFail) throw new PublishException(bet.SportId, 500, "Simulated failure");
+            PublishedBankrollIds.Add(bankrollId);
+            if (ShouldFail) throw new PublishException(0, 500, "Simulated failure");
             return Task.FromResult<string?>("order-id-123");
         }
     }
@@ -41,8 +47,8 @@ public class BetPublisherTests
         public List<HistoryEntry> Recorded { get; } = [];
         public int PurgeCallCount { get; private set; }
 
-        public Task<HashSet<int>> LoadPublishedIdsAsync(CancellationToken ct = default)
-            => Task.FromResult(new HashSet<int>());
+        public Task<HashSet<string>> LoadPublishedKeysAsync(CancellationToken ct = default)
+            => Task.FromResult(new HashSet<string>());
 
         public Task RecordAsync(HistoryEntry entry, CancellationToken ct = default)
         {
@@ -62,7 +68,7 @@ public class BetPublisherTests
     private static BetPublisher CreatePublisher(
         FakeExtendedClient? client = null,
         FakeHistoryManager? history = null,
-        string bankrollId = "test-bankroll")
+        string bankrollId = "99999")
     {
         var opts = Options.Create(new PosterOptions { BankrollId = bankrollId, DataPath = Path.GetTempPath() });
         return new BetPublisher(
@@ -72,13 +78,20 @@ public class BetPublisherTests
             NullLogger<BetPublisher>.Instance);
     }
 
-    private static SettledBet MakeBet(int id, string? homeTeam = null, string? awayTeam = null)
-        => new SettledBet
+    private static PendingBet MakeBet(int id, string? homeTeam = null, string? awayTeam = null)
+        => new PendingBet
         {
             Id    = id,
             Type  = "MONEYLINE",
+            Team  = "TEAM1",
             Price = 1.85m,
             Units = 2m,
+            Market = new PendingBetMarket
+            {
+                MatchupId = $"{id}",
+                Key = $"s;0;ml;{id}",
+                Prices = [new MarketPrice { Designation = "home", Price = 185 }]
+            },
             Event = homeTeam != null && awayTeam != null
                 ? new BetEvent { Home = homeTeam, Away = awayTeam, Starts = DateTime.UtcNow }
                 : null
@@ -104,7 +117,7 @@ public class BetPublisherTests
         var client  = new FakeExtendedClient();
         var history = new FakeHistoryManager();
         var publisher = CreatePublisher(client: client, history: history);
-        var bets = new List<SettledBet>
+        var bets = new List<PendingBet>
         {
             MakeBet(1, "PSG", "OM"),
             MakeBet(2, "Real", "Barça"),
@@ -147,25 +160,25 @@ public class BetPublisherTests
     }
 
     [Fact]
-    public async Task PublishAllAsync_WhenPublishFails_RethrowsPublishException()
+    public async Task PublishAllAsync_WhenPublishFails_SkipsAndReturnsZero()
     {
         var client = new FakeExtendedClient { ShouldFail = true };
         var publisher = CreatePublisher(client: client);
 
-        await Assert.ThrowsAsync<PublishException>(
-            () => publisher.PublishAllAsync([MakeBet(1)]));
+        var result = await publisher.PublishAllAsync([MakeBet(1)]);
+        Assert.Equal(0, result);
     }
 
     [Fact]
     public async Task PublishAllAsync_UsesBankrollIdFromOptions()
     {
         var client = new FakeExtendedClient();
-        var publisher = CreatePublisher(client: client, bankrollId: "my-bankroll-123");
+        var publisher = CreatePublisher(client: client, bankrollId: "12345");
 
         await publisher.PublishAllAsync([MakeBet(1)]);
 
         Assert.Single(client.PublishedRequests);
-        Assert.Equal("my-bankroll-123", client.PublishedRequests[0].BankrollId);
+        Assert.Equal(12345, client.PublishedBankrollIds[0]);
     }
 
     [Fact]

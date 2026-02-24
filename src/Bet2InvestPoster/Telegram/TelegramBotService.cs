@@ -38,8 +38,7 @@ public class TelegramBotService : BackgroundService
     {
         var receiverOptions = new ReceiverOptions
         {
-            AllowedUpdates = [UpdateType.Message],
-            DropPendingUpdates = true
+            AllowedUpdates = [UpdateType.Message]
         };
 
         _botClient.StartReceiving(
