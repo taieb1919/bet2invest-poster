@@ -38,7 +38,11 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
         Converters = { new NullableDecimalConverter(), new NullableIntConverter() }
     };
 
-    /// <summary>Treats JSON null as 0m for non-nullable decimal properties (e.g. pending bets with null wonUnits).</summary>
+    /// <summary>
+    /// Treats JSON null as 0m for non-nullable decimal properties (e.g. pending bets with null wonUnits).
+    /// WARNING: silently converts null → 0. Acceptable here because wonUnits/lostUnits null = no result yet (pending bets).
+    /// If the API returns null for fields where 0 has a different semantic meaning, this converter will mask the issue.
+    /// </summary>
     private sealed class NullableDecimalConverter : JsonConverter<decimal>
     {
         public override decimal Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
@@ -196,7 +200,9 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
 
             _logger.LogInformation("Résolution des IDs numériques pour {Count} tipster(s)", slugsToResolve.Count);
 
-            for (var page = 0; slugsToResolve.Count > 0; page++)
+            // Guard: max 50 pages (~1000 tipsters). Évite boucle infinie si l'API pagine en petits lots.
+            const int maxPages = 50;
+            for (var page = 0; slugsToResolve.Count > 0 && page < maxPages; page++)
             {
                 await Task.Delay(_options.RequestDelayMs, ct);
 

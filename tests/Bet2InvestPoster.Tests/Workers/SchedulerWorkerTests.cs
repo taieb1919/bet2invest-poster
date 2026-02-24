@@ -45,7 +45,7 @@ public class SchedulerWorkerTests
     }
 
     // Pass-through: executes the action once, no retry (for existing tests unrelated to Polly)
-    private class PassthroughResiliencePipelineService : IResiliencePipelineService
+    private class FakeResiliencePipelineService : IResiliencePipelineService
     {
         public async Task ExecuteCycleWithRetryAsync(Func<CancellationToken, Task> cycleAction, CancellationToken ct = default)
             => await cycleAction(ct);
@@ -81,7 +81,7 @@ public class SchedulerWorkerTests
         var options = Options.Create(new PosterOptions { ScheduleTime = scheduleTime, MaxRetryCount = 3 });
         var worker = new SchedulerWorker(
             sp, fakeState,
-            resilience ?? new PassthroughResiliencePipelineService(),
+            resilience ?? new FakeResiliencePipelineService(),
             fakeNotification,
             options, fakeTime,
             NullLogger<SchedulerWorker>.Instance);

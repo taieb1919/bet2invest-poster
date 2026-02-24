@@ -86,6 +86,7 @@ public class BetPublisherTests
             Team  = "TEAM1",
             Price = 1.85m,
             Units = 2m,
+            Sport = new BetSport { Id = 1, Name = "Football" },
             Market = new PendingBetMarket
             {
                 MatchupId = $"{id}",
@@ -179,6 +180,36 @@ public class BetPublisherTests
 
         Assert.Single(client.PublishedRequests);
         Assert.Equal(12345, client.PublishedBankrollIds[0]);
+    }
+
+    [Fact]
+    public async Task PublishAllAsync_WithInvalidMatchupId_SkipsBet()
+    {
+        var client = new FakeExtendedClient();
+        var history = new FakeHistoryManager();
+        var publisher = CreatePublisher(client: client, history: history);
+        var bet = MakeBet(1, "PSG", "OM");
+        bet.Market!.MatchupId = "not-a-number";
+
+        var result = await publisher.PublishAllAsync([bet]);
+
+        Assert.Equal(0, result);
+        Assert.Equal(0, client.PublishCallCount);
+    }
+
+    [Fact]
+    public async Task PublishAllAsync_WithNullSport_SkipsBet()
+    {
+        var client = new FakeExtendedClient();
+        var history = new FakeHistoryManager();
+        var publisher = CreatePublisher(client: client, history: history);
+        var bet = MakeBet(1, "PSG", "OM");
+        bet.Sport = null;
+
+        var result = await publisher.PublishAllAsync([bet]);
+
+        Assert.Equal(0, result);
+        Assert.Equal(0, client.PublishCallCount);
     }
 
     [Fact]

@@ -4,6 +4,9 @@ namespace Bet2InvestPoster.Models;
 
 public class HistoryEntry
 {
+    /// <summary>Separator used in deduplication keys (matchupId|marketKey|designation).</summary>
+    public const string KeySeparator = "|";
+
     [JsonPropertyName("betId")]
     public int BetId { get; set; }
 
@@ -29,5 +32,5 @@ public class HistoryEntry
 
     /// <summary>Unique key for deduplication: matchupId|marketKey|designation.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public string DeduplicationKey => $"{MatchupId}|{MarketKey}|{Designation?.ToLowerInvariant()}";
+    public string DeduplicationKey => $"{MatchupId}{KeySeparator}{MarketKey}{KeySeparator}{Designation?.ToLowerInvariant()}";
 }

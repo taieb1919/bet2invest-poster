@@ -45,7 +45,7 @@ public class BetPublisher : IBetPublisher
                     continue;
                 }
 
-                var designation = DeriveDesignation(bet);
+                var designation = bet.DerivedDesignation;
 
                 // Lookup current market price matching the designation
                 var marketPrice = bet.Market.Prices
@@ -59,19 +59,33 @@ public class BetPublisher : IBetPublisher
                     continue;
                 }
 
+                if (bet.Sport == null)
+                {
+                    _logger.LogWarning("Bet#{BetId} ignoré : sport absent (SportId requis par l'API)", bet.Id);
+                    continue;
+                }
+
+                if (!long.TryParse(bet.Market.MatchupId, out var matchupId))
+                {
+                    _logger.LogWarning("Bet#{BetId} ignoré : MatchupId invalide '{MatchupId}'", bet.Id, bet.Market.MatchupId);
+                    continue;
+                }
+
                 var request = new BetOrderRequest
                 {
-                    SportId      = bet.Sport?.Id ?? 0,
-                    MatchupId    = long.Parse(bet.Market.MatchupId),
+                    SportId      = bet.Sport.Id,
+                    MatchupId    = matchupId,
                     MarketKey    = bet.Market.Key,
                     Designation  = designation,
                     Type         = "straight",
+                    // Toujours 1 unit : on ne suit pas le staking du tipster — choix produit pour limiter l'exposition
                     Units        = 1m,
                     Price        = marketPrice.Price,
                     Points       = marketPrice.Points,
                     Invisible    = false
                 };
 
+                // BankrollId validé comme int au démarrage (Program.cs fast-fail)
                 var bankrollId = int.Parse(_options.BankrollId);
                 try
                 {
@@ -110,27 +124,4 @@ public class BetPublisher : IBetPublisher
         }
     }
 
-    /// <summary>
-    /// Maps bet team/side to the API designation value used by the web UI.
-    /// TEAM1 → home, TEAM2 → away, OVER → over, UNDER → under.
-    /// </summary>
-    private static string? DeriveDesignation(PendingBet bet)
-    {
-        if (!string.IsNullOrEmpty(bet.Team))
-        {
-            return bet.Team switch
-            {
-                "TEAM1" => "home",
-                "TEAM2" => "away",
-                _ => bet.Team.ToLowerInvariant()
-            };
-        }
-
-        if (!string.IsNullOrEmpty(bet.Side))
-        {
-            return bet.Side.ToLowerInvariant(); // OVER → over, UNDER → under
-        }
-
-        return null;
-    }
 }

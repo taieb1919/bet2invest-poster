@@ -127,6 +127,11 @@ if (missingVars.Count > 0)
     throw new InvalidOperationException(
         $"Required environment variables not configured: {string.Join(", ", missingVars)}");
 
+// Poster__BankrollId doit être un entier valide (utilisé par int.Parse dans BetPublisher)
+if (!int.TryParse(posterOpts.BankrollId, out _))
+    throw new InvalidOperationException(
+        $"Poster:BankrollId doit être un entier valide (valeur actuelle : '{posterOpts.BankrollId}')");
+
 // NFR8 : délai minimum 500ms entre requêtes API (rate limiting)
 if (b2iOpts.RequestDelayMs < 500)
     throw new InvalidOperationException(

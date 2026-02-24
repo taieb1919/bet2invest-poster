@@ -28,7 +28,7 @@ public class RunCommandHandlerTests
     }
 
     // Pass-through: executes once, no retry (for existing tests unrelated to Polly behavior)
-    private class PassthroughResiliencePipelineService : IResiliencePipelineService
+    private class FakeResiliencePipelineService : IResiliencePipelineService
     {
         public async Task ExecuteCycleWithRetryAsync(Func<CancellationToken, Task> cycleAction, CancellationToken ct = default)
             => await cycleAction(ct);
@@ -49,7 +49,7 @@ public class RunCommandHandlerTests
         var options = Options.Create(new PosterOptions { MaxRetryCount = 3 });
         var handler = new RunCommandHandler(
             scopeFactory,
-            new PassthroughResiliencePipelineService(),
+            new FakeResiliencePipelineService(),
             stateService,
             options,
             NullLogger<RunCommandHandler>.Instance);
@@ -63,7 +63,7 @@ public class RunCommandHandlerTests
         var options = Options.Create(new PosterOptions { MaxRetryCount = 3 });
         return new RunCommandHandler(
             sp.GetRequiredService<IServiceScopeFactory>(),
-            new PassthroughResiliencePipelineService(),
+            new FakeResiliencePipelineService(),
             new ExecutionStateService(),
             options,
             NullLogger<RunCommandHandler>.Instance);

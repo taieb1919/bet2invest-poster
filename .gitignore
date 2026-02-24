@@ -44,6 +44,8 @@ coverage/
 *.trx
 
 # Sensitive configuration
+.env
+.env.*
 appsettings.Development.json
 appsettings.*.json
 !appsettings.json

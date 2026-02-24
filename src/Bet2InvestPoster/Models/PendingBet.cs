@@ -11,6 +11,33 @@ public class PendingBet : SettledBet
 {
     [JsonPropertyName("market")]
     public PendingBetMarket? Market { get; set; }
+
+    /// <summary>
+    /// Maps bet team/side to the API designation value used by the web UI.
+    /// TEAM1 → home, TEAM2 → away, OVER → over, UNDER → under.
+    /// </summary>
+    [JsonIgnore]
+    public string? DerivedDesignation
+    {
+        get
+        {
+            if (!string.IsNullOrEmpty(Team))
+                return Team switch
+                {
+                    "TEAM1" => "home",
+                    "TEAM2" => "away",
+                    _ => Team.ToLowerInvariant()
+                };
+            if (!string.IsNullOrEmpty(Side))
+                return Side.ToLowerInvariant();
+            return null;
+        }
+    }
+
+    /// <summary>Deduplication key matching HistoryEntry format: matchupId|marketKey|designation.</summary>
+    [JsonIgnore]
+    public string? DeduplicationKey =>
+        Market != null ? $"{Market.MatchupId}{HistoryEntry.KeySeparator}{Market.Key}{HistoryEntry.KeySeparator}{DerivedDesignation?.ToLowerInvariant()}" : null;
 }
 
 public class PendingBetMarket

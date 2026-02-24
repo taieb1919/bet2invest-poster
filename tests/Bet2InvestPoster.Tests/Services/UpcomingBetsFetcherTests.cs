@@ -100,21 +100,21 @@ public class UpcomingBetsFetcherTests
         Assert.Equal(1, fake.CallCount);
     }
 
-    // ─── 5.7: API exception propagates ────────────────────────────
+    // ─── 5.7: API exception caught per-tipster, returns empty results ───
 
     [Fact]
-    public async Task FetchAllAsync_PropagatesBet2InvestApiException()
+    public async Task FetchAllAsync_ApiException_CaughtPerTipster_ReturnsEmptyResults()
     {
         var fake = new FakeExtendedBet2InvestClient();
         fake.SetupThrow(401, new Bet2InvestApiException("/v1/statistics/401", 503, "Service unavailable"));
 
         var tipsters = new List<TipsterConfig> { MakeTipster("Tipster", numericId: 401) };
 
-        var ex = await Assert.ThrowsAsync<Bet2InvestApiException>(
-            () => CreateFetcher(fake).FetchAllAsync(tipsters));
+        // Exception caught per-tipster, returns empty (no propagation)
+        var result = await CreateFetcher(fake).FetchAllAsync(tipsters);
 
-        Assert.Equal(503, ex.HttpStatusCode);
-        Assert.Equal("/v1/statistics/401", ex.Endpoint);
+        Assert.Empty(result);
+        Assert.Equal(1, fake.CallCount);
     }
 
     // ─── 5.8: CancellationToken propagates ────────────────────────
@@ -170,10 +170,10 @@ public class UpcomingBetsFetcherTests
         Assert.Equal(2, fake.CallCount);
     }
 
-    // ─── M2: Partial failure — exception on 2nd tipster ─────────────
+    // ─── Partial failure — exception on 2nd tipster, 1st tipster results preserved ─────────────
 
     [Fact]
-    public async Task FetchAllAsync_SecondTipsterFails_ExceptionPropagatesPartialResultsLost()
+    public async Task FetchAllAsync_SecondTipsterFails_FirstTipsterResultsPreserved()
     {
         var fake = new FakeExtendedBet2InvestClient();
         fake.Setup(701, canSeeBets: true, bets: [MakeBet(1), MakeBet(2)]);
@@ -181,10 +181,12 @@ public class UpcomingBetsFetcherTests
 
         var tipsters = new List<TipsterConfig> { MakeTipster("OK", numericId: 701), MakeTipster("Fail", numericId: 702) };
 
-        var ex = await Assert.ThrowsAsync<Bet2InvestApiException>(
-            () => CreateFetcher(fake).FetchAllAsync(tipsters));
+        var result = await CreateFetcher(fake).FetchAllAsync(tipsters);
 
-        Assert.Equal(500, ex.HttpStatusCode);
+        // Le tipster OK a réussi, ses bets sont conservés malgré l'échec du 2e
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, b => b.Id == 1);
+        Assert.Contains(result, b => b.Id == 2);
         Assert.Equal(2, fake.CallCount);
     }
 

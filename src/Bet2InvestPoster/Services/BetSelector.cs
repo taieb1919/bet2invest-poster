@@ -27,8 +27,8 @@ public class BetSelector : IBetSelector
                 .Where(b => b.Market != null)
                 .Where(b =>
                 {
-                    var key = $"{b.Market!.MatchupId}|{b.Market.Key}|{DeriveDesignation(b)?.ToLowerInvariant()}";
-                    return !publishedKeys.Contains(key);
+                    var key = b.DeduplicationKey;
+                    return key != null && !publishedKeys.Contains(key);
                 })
                 .ToList();
 
@@ -55,17 +55,4 @@ public class BetSelector : IBetSelector
         }
     }
 
-    private static string? DeriveDesignation(PendingBet bet)
-    {
-        if (!string.IsNullOrEmpty(bet.Team))
-            return bet.Team switch
-            {
-                "TEAM1" => "home",
-                "TEAM2" => "away",
-                _ => bet.Team.ToLowerInvariant()
-            };
-        if (!string.IsNullOrEmpty(bet.Side))
-            return bet.Side.ToLowerInvariant();
-        return null;
-    }
 }

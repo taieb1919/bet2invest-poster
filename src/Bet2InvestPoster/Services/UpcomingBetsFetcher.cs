@@ -34,31 +34,41 @@ public class UpcomingBetsFetcher : IUpcomingBetsFetcher
                     continue;
                 }
 
-                // NFR8: 500ms delay is handled inside ExtendedBet2InvestClient.GetUpcomingBetsAsync.
-                // Bet2InvestApiException and OperationCanceledException propagate as-is (NFR9).
-                var (canSeeBets, bets) = await _client.GetUpcomingBetsAsync(tipster.NumericId, ct);
+                try
+                {
+                    // NFR8: 500ms delay is handled inside ExtendedBet2InvestClient.GetUpcomingBetsAsync.
+                    var (canSeeBets, bets) = await _client.GetUpcomingBetsAsync(tipster.NumericId, ct);
 
-                if (!canSeeBets)
-                {
-                    // FR6 level-2: tipster is pro or access is restricted — skip silently with warning.
-                    _logger.LogWarning(
-                        "Tipster {Name} (id={Id}) ignoré : canSeeBets=false (tipster pro ou accès restreint)",
-                        tipster.Name, tipster.Id);
-                    continue;
-                }
+                    if (!canSeeBets)
+                    {
+                        // FR6 level-2: tipster is pro or access is restricted — skip silently with warning.
+                        _logger.LogWarning(
+                            "Tipster {Name} (id={Id}) ignoré : canSeeBets=false (tipster pro ou accès restreint)",
+                            tipster.Name, tipster.Id);
+                        continue;
+                    }
 
-                if (bets.Count == 0)
-                {
-                    _logger.LogWarning(
-                        "Aucun pari à venir pour tipster {Name} (id={Id})",
-                        tipster.Name, tipster.Id);
+                    if (bets.Count == 0)
+                    {
+                        _logger.LogWarning(
+                            "Aucun pari à venir pour tipster {Name} (id={Id})",
+                            tipster.Name, tipster.Id);
+                    }
+                    else
+                    {
+                        _logger.LogInformation(
+                            "{Count} paris à venir pour tipster {Name} (id={Id})",
+                            bets.Count, tipster.Name, tipster.Id);
+                        allBets.AddRange(bets);
+                    }
                 }
-                else
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
                 {
-                    _logger.LogInformation(
-                        "{Count} paris à venir pour tipster {Name} (id={Id})",
-                        bets.Count, tipster.Name, tipster.Id);
-                    allBets.AddRange(bets);
+                    // Un tipster en erreur ne doit pas empêcher les suivants d'être fetchés
+                    _logger.LogWarning(ex,
+                        "Tipster {Name} (id={Id}) échec du fetch — continue avec les suivants",
+                        tipster.Name, tipster.Id);
                 }
             }
 
