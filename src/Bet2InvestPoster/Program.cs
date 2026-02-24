@@ -68,17 +68,25 @@ builder.Services.AddScoped<IHistoryManager, HistoryManager>();
 // BetSelector: Scoped — filters duplicates and randomly selects 5/10/15 bets per cycle.
 builder.Services.AddScoped<IBetSelector, BetSelector>();
 
+// BetPublisher: Scoped — publishes selected bets via API and records them in history.
+builder.Services.AddScoped<IBetPublisher, BetPublisher>();
+
+// PostingCycleService: Scoped — orchestrates the full posting cycle per execution.
+builder.Services.AddScoped<IPostingCycleService, PostingCycleService>();
+
 var host = builder.Build();
 
 // Fast-fail: validate required credentials before starting
 // Credentials must be provided via environment variables, never in appsettings.json
 var b2iOpts = host.Services.GetRequiredService<IOptions<Bet2InvestOptions>>().Value;
 var tgOpts = host.Services.GetRequiredService<IOptions<TelegramOptions>>().Value;
+var posterOpts = host.Services.GetRequiredService<IOptions<PosterOptions>>().Value;
 var missingVars = new List<string>();
 if (string.IsNullOrWhiteSpace(b2iOpts.Identifier)) missingVars.Add("Bet2Invest__Identifier");
 if (string.IsNullOrWhiteSpace(b2iOpts.Password)) missingVars.Add("Bet2Invest__Password");
 if (string.IsNullOrWhiteSpace(tgOpts.BotToken)) missingVars.Add("Telegram__BotToken");
 if (tgOpts.AuthorizedChatId == 0) missingVars.Add("Telegram__AuthorizedChatId");
+if (string.IsNullOrWhiteSpace(posterOpts.BankrollId)) missingVars.Add("Poster__BankrollId");
 if (missingVars.Count > 0)
     throw new InvalidOperationException(
         $"Required environment variables not configured: {string.Join(", ", missingVars)}");
