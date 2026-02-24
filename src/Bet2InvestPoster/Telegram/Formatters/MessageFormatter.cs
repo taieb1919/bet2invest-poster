@@ -12,7 +12,7 @@ public class MessageFormatter : IMessageFormatter
             return "📭 Aucune publication dans l'historique.";
 
         var sb = new StringBuilder();
-        sb.AppendLine($"📋 Historique des {entries.Count} dernières publications");
+        sb.AppendLine("📋 Historique des dernières publications");
 
         // PublishedAt est stocké en UTC — le groupement par date est donc en UTC
         var groups = entries

@@ -58,6 +58,20 @@ public class SchedulerWorker : BackgroundService
             }
             _lastScheduleTime = currentScheduleTime;
 
+            // Attente que le scheduling soit activé (vérification toutes les 5s)
+            // Vérifié AVANT le calcul du prochain run pour réagir immédiatement au /stop
+            while (!_executionStateService.GetSchedulingEnabled() && !stoppingToken.IsCancellationRequested)
+            {
+                using (LogContext.PushProperty("Step", "Schedule"))
+                {
+                    _logger.LogDebug("Scheduling suspendu — vérification dans 5s");
+                }
+                await Task.Delay(TimeSpan.FromSeconds(5), _timeProvider, stoppingToken);
+            }
+
+            if (stoppingToken.IsCancellationRequested)
+                break;
+
             var nextRun = CalculateNextRun();
             _executionStateService.SetNextRun(nextRun);
 
@@ -70,19 +84,6 @@ public class SchedulerWorker : BackgroundService
             var delay = nextRun - _timeProvider.GetUtcNow();
             if (delay > TimeSpan.Zero)
                 await Task.Delay(delay, _timeProvider, stoppingToken);
-
-            if (stoppingToken.IsCancellationRequested)
-                break;
-
-            // Attente que le scheduling soit activé (vérification toutes les 5s)
-            while (!_executionStateService.GetSchedulingEnabled() && !stoppingToken.IsCancellationRequested)
-            {
-                using (LogContext.PushProperty("Step", "Schedule"))
-                {
-                    _logger.LogDebug("Scheduling suspendu — vérification dans 5s");
-                }
-                await Task.Delay(TimeSpan.FromSeconds(5), _timeProvider, stoppingToken);
-            }
 
             if (stoppingToken.IsCancellationRequested)
                 break;

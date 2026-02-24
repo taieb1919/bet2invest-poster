@@ -1,6 +1,6 @@
 # Story 7.2: Commande /history — Historique des Publications
 
-Status: review
+Status: done
 
 ## Story
 
@@ -189,6 +189,9 @@ Aucun blocage majeur. Les fakes `IHistoryManager` dans les tests existants (BetS
 - tests/Bet2InvestPoster.Tests/Services/PostingCycleServiceNotificationTests.cs (modifié — fake mis à jour)
 - tests/Bet2InvestPoster.Tests/Services/ExecutionStateServiceTests.cs (modifié — interface mise à jour)
 - tests/Bet2InvestPoster.Tests/Telegram/Commands/StatusCommandHandlerTests.cs (modifié — interface mise à jour)
+- tests/Bet2InvestPoster.Tests/Telegram/Commands/StartCommandHandlerTests.cs (modifié — fake mis à jour)
+- tests/Bet2InvestPoster.Tests/Telegram/Commands/StopCommandHandlerTests.cs (modifié — fake mis à jour)
 - tests/Bet2InvestPoster.Tests/Workers/SchedulerWorkerPollyTests.cs (modifié — fake mis à jour)
+- src/Bet2InvestPoster/Telegram/TelegramBotService.cs (modifié — /history ajouté au message "Commande inconnue")
 - .bmadOutput/implementation-artifacts/sprint-status.yaml (modifié — statut story mis à jour)
 

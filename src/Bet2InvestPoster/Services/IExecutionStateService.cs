@@ -7,6 +7,10 @@ public interface IExecutionStateService
     void RecordFailure(string reason);
     void SetNextRun(DateTimeOffset nextRunAt);
     void SetApiConnectionStatus(bool connected);
+    bool GetSchedulingEnabled();
+    void SetSchedulingEnabled(bool enabled);
+    string GetScheduleTime();
+    void SetScheduleTime(string time);
 }
 
 public record ExecutionState(
@@ -14,5 +18,7 @@ public record ExecutionState(
     bool? LastRunSuccess,
     string? LastRunResult,
     DateTimeOffset? NextRunAt,
-    bool? ApiConnected
+    bool? ApiConnected,
+    bool SchedulingEnabled = true,
+    string ScheduleTime = "08:00"
 );

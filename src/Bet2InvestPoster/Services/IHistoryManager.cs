@@ -21,4 +21,10 @@ public interface IHistoryManager
     /// Logs purged count with Step="Purge". No-op if file does not exist.
     /// </summary>
     Task PurgeOldEntriesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the <paramref name="count"/> most recent history entries sorted by PublishedAt descending.
+    /// Returns an empty list if the file does not exist.
+    /// </summary>
+    Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default);
 }

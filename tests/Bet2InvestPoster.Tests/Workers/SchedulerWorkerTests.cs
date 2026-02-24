@@ -332,12 +332,36 @@ public class SchedulerWorkerTests
         public void SetScheduleTime(string time) { }
     }
 
+    /// <summary>
+    /// FakeTimeProvider that signals each time a timer is created (worker reached Task.Delay).
+    /// Eliminates race conditions from Task.Delay(50) in tests.
+    /// </summary>
+    private class CountingFakeTimeProvider(DateTimeOffset startTime) : FakeTimeProvider(startTime)
+    {
+        private int _timerCount;
+        private TaskCompletionSource _nextTimerTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Interlocked.Increment(ref _timerCount);
+            _nextTimerTcs.TrySetResult();
+            return base.CreateTimer(callback, state, dueTime, period);
+        }
+
+        /// <summary>Wait for the next timer registration (deterministic signal).</summary>
+        public async Task WaitForNextTimerAsync(TimeSpan timeout)
+        {
+            await _nextTimerTcs.Task.WaitAsync(timeout);
+            _nextTimerTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
     [Fact]
     public async Task ExecuteAsync_WhenSchedulingDisabled_DoesNotRunCycle_UntilEnabled()
     {
-        // Scheduling disabled at trigger time — worker should pause then run when re-enabled
+        // Scheduling disabled — worker enters polling loop immediately (before calculating next run)
         var now = new DateTimeOffset(2026, 2, 25, 7, 59, 0, TimeSpan.Zero);
-        var fakeTime = new FakeTimeProvider(now);
+        var fakeTime = new CountingFakeTimeProvider(now);
         var controllableState = new ControllableExecutionStateService(schedulingEnabled: false);
         var fakeCycle = new FakePostingCycleService();
 
@@ -354,18 +378,22 @@ public class SchedulerWorkerTests
 
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
-        await Task.Delay(50); // let worker start
 
-        // Trigger scheduled time
-        fakeTime.Advance(TimeSpan.FromMinutes(1));
+        // Wait for worker to enter the polling loop (5s delay — scheduling disabled)
+        await fakeTime.WaitForNextTimerAsync(TimeSpan.FromSeconds(5));
 
-        // Wait a bit — cycle should NOT run because scheduling is disabled
-        await Task.Delay(200);
+        // Cycle should NOT have run because scheduling is disabled
         Assert.Equal(0, fakeCycle.RunCount);
 
-        // Enable scheduling — advance fake time to unblock polling delay, then cycle should run
+        // Enable scheduling and advance past polling delay
         controllableState.SetSchedulingEnabled(true);
         fakeTime.Advance(TimeSpan.FromSeconds(5));
+
+        // Wait for the main schedule delay timer (worker exited polling, now waiting for next run)
+        await fakeTime.WaitForNextTimerAsync(TimeSpan.FromSeconds(5));
+
+        // Advance past the schedule time to trigger the cycle
+        fakeTime.Advance(TimeSpan.FromMinutes(1));
         await fakeCycle.CycleExecuted.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         await worker.StopAsync(CancellationToken.None);
@@ -377,7 +405,7 @@ public class SchedulerWorkerTests
     public async Task ExecuteAsync_WhenSchedulingDisabled_StopsOnCancellation()
     {
         var now = new DateTimeOffset(2026, 2, 25, 7, 59, 0, TimeSpan.Zero);
-        var fakeTime = new FakeTimeProvider(now);
+        var fakeTime = new CountingFakeTimeProvider(now);
         var controllableState = new ControllableExecutionStateService(schedulingEnabled: false);
         var fakeCycle = new FakePostingCycleService();
 
@@ -394,10 +422,9 @@ public class SchedulerWorkerTests
 
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
-        await Task.Delay(50);
 
-        fakeTime.Advance(TimeSpan.FromMinutes(1)); // trigger — but disabled
-        await Task.Delay(100); // let worker enter the polling loop
+        // Wait for polling loop timer (scheduling disabled → enters polling immediately)
+        await fakeTime.WaitForNextTimerAsync(TimeSpan.FromSeconds(5));
 
         await cts.CancelAsync();
         await worker.StopAsync(CancellationToken.None);

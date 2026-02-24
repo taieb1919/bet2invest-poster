@@ -80,10 +80,10 @@ development_status:
   # PHASE 2 — Post-MVP
   # ============================================
 
-  epic-7: backlog
-  7-1-commandes-start-et-stop-controle-du-scheduling: backlog
-  7-2-commande-history-historique-des-publications: backlog
-  7-3-commande-schedule-configuration-horaire-via-telegram: backlog
+  epic-7: done
+  7-1-commandes-start-et-stop-controle-du-scheduling: done
+  7-2-commande-history-historique-des-publications: done
+  7-3-commande-schedule-configuration-horaire-via-telegram: done
   epic-7-retrospective: optional
 
   epic-8: backlog

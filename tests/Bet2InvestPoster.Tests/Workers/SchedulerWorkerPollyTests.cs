@@ -62,6 +62,8 @@ public class SchedulerWorkerPollyTests
         public void SetApiConnectionStatus(bool connected) { }
         public bool GetSchedulingEnabled() => true;
         public void SetSchedulingEnabled(bool enabled) { }
+        public string GetScheduleTime() => "08:00";
+        public void SetScheduleTime(string time) { }
     }
 
     // ──────────────────────────────── SignalingFakeTimeProvider ────────────────────────────────

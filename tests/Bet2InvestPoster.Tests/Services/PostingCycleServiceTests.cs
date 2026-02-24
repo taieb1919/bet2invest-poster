@@ -46,6 +46,9 @@ public class PostingCycleServiceTests
             _callOrder?.Add("Purge");
             return Task.CompletedTask;
         }
+
+        public Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
+            => Task.FromResult(new List<HistoryEntry>());
     }
 
     private sealed class FakeTipsterService : ITipsterService
@@ -152,6 +155,10 @@ public class PostingCycleServiceTests
         public void RecordFailure(string reason) { RecordFailureCalled = true; LastFailureReason = reason; }
         public void SetNextRun(DateTimeOffset nextRunAt) { }
         public void SetApiConnectionStatus(bool connected) { }
+        public bool GetSchedulingEnabled() => true;
+        public void SetSchedulingEnabled(bool enabled) { }
+        public string GetScheduleTime() => "08:00";
+        public void SetScheduleTime(string time) { }
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────

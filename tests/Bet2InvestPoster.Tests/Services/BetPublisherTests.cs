@@ -61,6 +61,9 @@ public class BetPublisherTests
             PurgeCallCount++;
             return Task.CompletedTask;
         }
+
+        public Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
+            => Task.FromResult(new List<HistoryEntry>());
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

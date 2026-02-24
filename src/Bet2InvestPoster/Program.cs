@@ -109,7 +109,7 @@ builder.Services.AddSingleton<IExecutionStateService>(sp =>
 // MessageFormatter: Singleton — formats Telegram status messages.
 builder.Services.AddSingleton<IMessageFormatter, MessageFormatter>();
 
-// Command handlers: Singleton — /run, /status, /start, /stop dispatch.
+// Command handlers: Singleton — /run, /status, /start, /stop, /history, /schedule dispatch.
 builder.Services.AddSingleton<ICommandHandler, RunCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, StatusCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, StartCommandHandler>();

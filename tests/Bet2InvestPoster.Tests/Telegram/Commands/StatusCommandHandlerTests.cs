@@ -24,6 +24,10 @@ public class StatusCommandHandlerTests
         public void RecordFailure(string reason) { }
         public void SetNextRun(DateTimeOffset nextRunAt) { }
         public void SetApiConnectionStatus(bool connected) { }
+        public bool GetSchedulingEnabled() => true;
+        public void SetSchedulingEnabled(bool enabled) { }
+        public string GetScheduleTime() => "08:00";
+        public void SetScheduleTime(string time) { }
     }
 
     private static Message MakeMessage(string text = "/status") =>

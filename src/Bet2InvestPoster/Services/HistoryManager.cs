@@ -109,6 +109,23 @@ public class HistoryManager : IHistoryManager
         }
     }
 
+    public async Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
+    {
+        await _semaphore.WaitAsync(ct);
+        try
+        {
+            var entries = await LoadEntriesAsync(ct);
+            return entries
+                .OrderByDescending(e => e.PublishedAt)
+                .Take(count)
+                .ToList();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     private async Task<List<HistoryEntry>> LoadEntriesAsync(CancellationToken ct)
     {
         if (!File.Exists(_historyPath))

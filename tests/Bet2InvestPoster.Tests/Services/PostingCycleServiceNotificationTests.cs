@@ -31,6 +31,9 @@ public class PostingCycleServiceNotificationTests
             => Task.CompletedTask;
         public Task PurgeOldEntriesAsync(CancellationToken ct = default)
             => Task.CompletedTask;
+
+        public Task<List<Models.HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
+            => Task.FromResult(new List<Models.HistoryEntry>());
     }
 
     private sealed class SimpleTipsterService : ITipsterService
@@ -206,5 +209,9 @@ public class PostingCycleServiceNotificationTests
         public void RecordFailure(string reason) => _order.Add(_tag);
         public void SetNextRun(DateTimeOffset nextRunAt) { }
         public void SetApiConnectionStatus(bool connected) { }
+        public bool GetSchedulingEnabled() => true;
+        public void SetSchedulingEnabled(bool enabled) { }
+        public string GetScheduleTime() => "08:00";
+        public void SetScheduleTime(string time) { }
     }
 }

@@ -28,6 +28,8 @@ public class StopCommandHandlerTests
             SetSchedulingEnabledCalled = true;
             LastSetValue = enabled;
         }
+        public string GetScheduleTime() => "08:00";
+        public void SetScheduleTime(string time) { }
     }
 
     // ─── Helpers ──────────────────────────────────────────────────────────────

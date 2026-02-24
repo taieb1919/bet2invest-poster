@@ -146,5 +146,8 @@ public class BetSelectorTests
 
         public Task PurgeOldEntriesAsync(CancellationToken ct = default)
             => Task.CompletedTask;
+
+        public Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
+            => Task.FromResult(new List<HistoryEntry>());
     }
 }
