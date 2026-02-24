@@ -1,6 +1,8 @@
+using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Serilog.Context;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -10,16 +12,22 @@ namespace Bet2InvestPoster.Telegram.Commands;
 public class RunCommandHandler : ICommandHandler
 {
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IResiliencePipelineService _resiliencePipelineService;
     private readonly IExecutionStateService _stateService;
+    private readonly int _maxRetryCount;
     private readonly ILogger<RunCommandHandler> _logger;
 
     public RunCommandHandler(
         IServiceScopeFactory scopeFactory,
+        IResiliencePipelineService resiliencePipelineService,
         IExecutionStateService stateService,
+        IOptions<PosterOptions> options,
         ILogger<RunCommandHandler> logger)
     {
         _scopeFactory = scopeFactory;
+        _resiliencePipelineService = resiliencePipelineService;
         _stateService = stateService;
+        _maxRetryCount = options.Value.MaxRetryCount;
         _logger = logger;
     }
 
@@ -36,11 +44,13 @@ public class RunCommandHandler : ICommandHandler
 
         try
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var cycleService = scope.ServiceProvider.GetRequiredService<IPostingCycleService>();
-            await cycleService.RunCycleAsync(ct);
+            await _resiliencePipelineService.ExecuteCycleWithRetryAsync(async token =>
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var cycleService = scope.ServiceProvider.GetRequiredService<IPostingCycleService>();
+                await cycleService.RunCycleAsync(token);
+            }, ct);
 
-            _stateService.RecordSuccess(0);
             var state = _stateService.GetState();
 
             using (LogContext.PushProperty("Step", "Notify"))
@@ -55,14 +65,15 @@ public class RunCommandHandler : ICommandHandler
         }
         catch (Exception ex)
         {
-            _stateService.RecordFailure(ex.Message);
-
             using (LogContext.PushProperty("Step", "Notify"))
             {
-                _logger.LogError(ex, "Erreur lors de l'exécution du cycle via /run");
+                _logger.LogError(ex, "Erreur lors de l'exécution du cycle via /run — toutes tentatives épuisées");
             }
 
-            await bot.SendMessage(chatId, $"❌ Échec — {ex.GetType().Name}", cancellationToken: ct);
+            await bot.SendMessage(
+                chatId,
+                $"❌ Échec définitif après {_maxRetryCount} tentatives — {ex.GetType().Name}",
+                cancellationToken: ct);
         }
     }
 }

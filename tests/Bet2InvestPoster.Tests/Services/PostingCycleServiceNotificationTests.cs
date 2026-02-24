@@ -178,6 +178,7 @@ public class PostingCycleServiceNotificationTests
         public TrackingNotificationService(List<string> order, string tag) { _order = order; _tag = tag; }
         public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyFailureAsync(string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
+        public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
     }
 
     private sealed class TrackingExecutionStateService : IExecutionStateService

@@ -43,4 +43,17 @@ public class NotificationService : INotificationService
             await _botClient.SendMessage(_chatId, text, cancellationToken: ct);
         }
     }
+
+    public async Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default)
+    {
+        var text = $"❌ Échec définitif — {reason} après {attempts} tentatives.";
+
+        using (LogContext.PushProperty("Step", "Notify"))
+        {
+            _logger.LogWarning(
+                "Envoi notification échec définitif — {Attempts} tentatives, raison: {Reason}",
+                attempts, reason);
+            await _botClient.SendMessage(_chatId, text, cancellationToken: ct);
+        }
+    }
 }

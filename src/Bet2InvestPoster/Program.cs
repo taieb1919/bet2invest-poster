@@ -80,6 +80,9 @@ builder.Services.AddScoped<IBetPublisher, BetPublisher>();
 // PostingCycleService: Scoped — orchestrates the full posting cycle per execution.
 builder.Services.AddScoped<IPostingCycleService, PostingCycleService>();
 
+// ResiliencePipelineService: Singleton — builds ResiliencePipeline once from config.
+builder.Services.AddSingleton<IResiliencePipelineService, ResiliencePipelineService>();
+
 // AuthorizationFilter: Singleton — filters authorized chat ID for Telegram commands.
 builder.Services.AddSingleton<AuthorizationFilter>();
 

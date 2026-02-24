@@ -43,22 +43,48 @@ public class SchedulerWorkerTests
         }
     }
 
+    // Pass-through: executes the action once, no retry (for existing tests unrelated to Polly)
+    private class PassthroughResiliencePipelineService : IResiliencePipelineService
+    {
+        public async Task ExecuteCycleWithRetryAsync(Func<CancellationToken, Task> cycleAction, CancellationToken ct = default)
+            => await cycleAction(ct);
+    }
+
+    private class FakeNotificationService : INotificationService
+    {
+        public int FinalFailureCount { get; private set; }
+
+        public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyFailureAsync(string reason, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default)
+        {
+            FinalFailureCount++;
+            return Task.CompletedTask;
+        }
+    }
+
     // ──────────────────────────────── Helpers ────────────────────────────────
 
-    private static SchedulerWorker CreateWorker(
+    private static (SchedulerWorker worker, FakeNotificationService notificationService) CreateWorker(
         FakeTimeProvider fakeTime,
         FakeExecutionStateService fakeState,
         FakePostingCycleService fakeCycle,
-        string scheduleTime = "08:00")
+        string scheduleTime = "08:00",
+        IResiliencePipelineService? resilience = null)
     {
         var services = new ServiceCollection();
         services.AddScoped<IPostingCycleService>(_ => fakeCycle);
         var sp = services.BuildServiceProvider();
 
-        var options = Options.Create(new PosterOptions { ScheduleTime = scheduleTime });
-        return new SchedulerWorker(
-            sp, fakeState, options, fakeTime,
+        var fakeNotification = new FakeNotificationService();
+        var options = Options.Create(new PosterOptions { ScheduleTime = scheduleTime, MaxRetryCount = 3 });
+        var worker = new SchedulerWorker(
+            sp, fakeState,
+            resilience ?? new PassthroughResiliencePipelineService(),
+            fakeNotification,
+            options, fakeTime,
             NullLogger<SchedulerWorker>.Instance);
+        return (worker, fakeNotification);
     }
 
     // ──────────────────────── CalculateNextRun tests ────────────────────────
@@ -69,7 +95,7 @@ public class SchedulerWorkerTests
         // 07:59:00 UTC — schedule is 08:00
         var now = new DateTimeOffset(2026, 2, 25, 7, 59, 0, TimeSpan.Zero);
         var fakeTime = new FakeTimeProvider(now);
-        var worker = CreateWorker(fakeTime, new FakeExecutionStateService(), new FakePostingCycleService());
+        var (worker, _) = CreateWorker(fakeTime, new FakeExecutionStateService(), new FakePostingCycleService());
 
         var next = worker.CalculateNextRun();
 
@@ -83,7 +109,7 @@ public class SchedulerWorkerTests
         // 09:00:00 UTC — schedule is 08:00 (already passed)
         var now = new DateTimeOffset(2026, 2, 25, 9, 0, 0, TimeSpan.Zero);
         var fakeTime = new FakeTimeProvider(now);
-        var worker = CreateWorker(fakeTime, new FakeExecutionStateService(), new FakePostingCycleService());
+        var (worker, _) = CreateWorker(fakeTime, new FakeExecutionStateService(), new FakePostingCycleService());
 
         var next = worker.CalculateNextRun();
 
@@ -97,7 +123,7 @@ public class SchedulerWorkerTests
         // Exactly 08:00:00 UTC — schedule is 08:00 (equal, not greater → tomorrow)
         var now = new DateTimeOffset(2026, 2, 25, 8, 0, 0, TimeSpan.Zero);
         var fakeTime = new FakeTimeProvider(now);
-        var worker = CreateWorker(fakeTime, new FakeExecutionStateService(), new FakePostingCycleService());
+        var (worker, _) = CreateWorker(fakeTime, new FakeExecutionStateService(), new FakePostingCycleService());
 
         var next = worker.CalculateNextRun();
 
@@ -115,7 +141,7 @@ public class SchedulerWorkerTests
         var fakeTime = new FakeTimeProvider(now);
         var fakeState = new FakeExecutionStateService();
         var fakeCycle = new FakePostingCycleService();
-        var worker = CreateWorker(fakeTime, fakeState, fakeCycle);
+        var (worker, _) = CreateWorker(fakeTime, fakeState, fakeCycle);
 
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
@@ -137,7 +163,7 @@ public class SchedulerWorkerTests
         var fakeTime = new FakeTimeProvider(now);
         var fakeState = new FakeExecutionStateService();
         var fakeCycle = new FakePostingCycleService();
-        var worker = CreateWorker(fakeTime, fakeState, fakeCycle);
+        var (worker, _) = CreateWorker(fakeTime, fakeState, fakeCycle);
 
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
@@ -163,7 +189,7 @@ public class SchedulerWorkerTests
         var fakeTime = new FakeTimeProvider(now);
         var fakeState = new FakeExecutionStateService();
         var fakeCycle = new FakePostingCycleService();
-        var worker = CreateWorker(fakeTime, fakeState, fakeCycle);
+        var (worker, _) = CreateWorker(fakeTime, fakeState, fakeCycle);
 
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
@@ -191,7 +217,7 @@ public class SchedulerWorkerTests
         var fakeTime = new FakeTimeProvider(now);
         var fakeState = new FakeExecutionStateService();
         var fakeCycle = new FakePostingCycleService { ShouldThrow = true };
-        var worker = CreateWorker(fakeTime, fakeState, fakeCycle);
+        var (worker, _) = CreateWorker(fakeTime, fakeState, fakeCycle);
 
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);
@@ -218,7 +244,7 @@ public class SchedulerWorkerTests
         var fakeTime = new FakeTimeProvider(now);
         var fakeState = new FakeExecutionStateService();
         var fakeCycle = new FakePostingCycleService();
-        var worker = CreateWorker(fakeTime, fakeState, fakeCycle);
+        var (worker, _) = CreateWorker(fakeTime, fakeState, fakeCycle);
 
         using var cts = new CancellationTokenSource();
         await worker.StartAsync(cts.Token);

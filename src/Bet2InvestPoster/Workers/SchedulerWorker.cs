@@ -10,6 +10,9 @@ public class SchedulerWorker : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly IExecutionStateService _executionStateService;
+    private readonly IResiliencePipelineService _resiliencePipelineService;
+    private readonly INotificationService _notificationService;
+    private readonly int _maxRetryCount;
     private readonly TimeOnly _scheduleTime;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<SchedulerWorker> _logger;
@@ -17,12 +20,17 @@ public class SchedulerWorker : BackgroundService
     public SchedulerWorker(
         IServiceProvider serviceProvider,
         IExecutionStateService executionStateService,
+        IResiliencePipelineService resiliencePipelineService,
+        INotificationService notificationService,
         IOptions<PosterOptions> options,
         TimeProvider timeProvider,
         ILogger<SchedulerWorker> logger)
     {
         _serviceProvider = serviceProvider;
         _executionStateService = executionStateService;
+        _resiliencePipelineService = resiliencePipelineService;
+        _notificationService = notificationService;
+        _maxRetryCount = options.Value.MaxRetryCount;
         _scheduleTime = TimeOnly.Parse(options.Value.ScheduleTime, CultureInfo.InvariantCulture);
         _timeProvider = timeProvider;
         _logger = logger;
@@ -62,9 +70,12 @@ public class SchedulerWorker : BackgroundService
 
             try
             {
-                using var scope = _serviceProvider.CreateScope();
-                var cycleService = scope.ServiceProvider.GetRequiredService<IPostingCycleService>();
-                await cycleService.RunCycleAsync(stoppingToken);
+                await _resiliencePipelineService.ExecuteCycleWithRetryAsync(async ct =>
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var cycleService = scope.ServiceProvider.GetRequiredService<IPostingCycleService>();
+                    await cycleService.RunCycleAsync(ct);
+                }, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -72,13 +83,13 @@ public class SchedulerWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                // PostingCycleService a déjà loggé, notifié et mis à jour l'état.
-                // Story 5.2 ajoutera le retry Polly ici.
-                // On continue la boucle pour le prochain run quotidien.
+                // Toutes les tentatives Polly épuisées — notifier l'échec définitif (FR18)
                 using (LogContext.PushProperty("Step", "Schedule"))
                 {
-                    _logger.LogError(ex, "Cycle échoué — reprise au prochain run planifié");
+                    _logger.LogError(ex, "Toutes les tentatives épuisées — cycle définitivement échoué");
                 }
+                await _notificationService.NotifyFinalFailureAsync(
+                    _maxRetryCount, ex.GetType().Name, CancellationToken.None);
             }
         }
     }

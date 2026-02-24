@@ -123,6 +123,9 @@ public class PostingCycleServiceTests
             LastFailureReason = reason;
             return Task.CompletedTask;
         }
+
+        public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default)
+            => Task.CompletedTask;
     }
 
     internal sealed class FakeExecutionStateService : IExecutionStateService

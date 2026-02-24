@@ -1,7 +1,10 @@
+using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram.Commands;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using global::Telegram.Bot.Types;
 
 namespace Bet2InvestPoster.Tests.Telegram.Commands;
@@ -24,9 +27,16 @@ public class RunCommandHandlerTests
         }
     }
 
+    // Pass-through: executes once, no retry (for existing tests unrelated to Polly behavior)
+    private class PassthroughResiliencePipelineService : IResiliencePipelineService
+    {
+        public async Task ExecuteCycleWithRetryAsync(Func<CancellationToken, Task> cycleAction, CancellationToken ct = default)
+            => await cycleAction(ct);
+    }
+
     // --- Helpers ---
 
-    private static (RunCommandHandler handler, FakeTelegramBotClient bot, FakePostingCycleService cycleService, ExecutionStateService stateService)
+    private static (RunCommandHandler handler, FakeTelegramBotClient bot, FakePostingCycleService cycleService)
         CreateHandler(bool shouldThrow = false)
     {
         var cycleService = new FakePostingCycleService { ShouldThrow = shouldThrow };
@@ -36,17 +46,26 @@ public class RunCommandHandlerTests
         var sp = services.BuildServiceProvider();
 
         var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-        var handler = new RunCommandHandler(scopeFactory, stateService, NullLogger<RunCommandHandler>.Instance);
+        var options = Options.Create(new PosterOptions { MaxRetryCount = 3 });
+        var handler = new RunCommandHandler(
+            scopeFactory,
+            new PassthroughResiliencePipelineService(),
+            stateService,
+            options,
+            NullLogger<RunCommandHandler>.Instance);
         var bot = new FakeTelegramBotClient();
-        return (handler, bot, cycleService, stateService);
+        return (handler, bot, cycleService);
     }
 
     private static RunCommandHandler CreateMinimalHandler()
     {
         var sp = new ServiceCollection().BuildServiceProvider();
+        var options = Options.Create(new PosterOptions { MaxRetryCount = 3 });
         return new RunCommandHandler(
             sp.GetRequiredService<IServiceScopeFactory>(),
+            new PassthroughResiliencePipelineService(),
             new ExecutionStateService(),
+            options,
             NullLogger<RunCommandHandler>.Instance);
     }
 
@@ -70,32 +89,90 @@ public class RunCommandHandlerTests
     [Fact]
     public async Task HandleAsync_Success_CallsCycleServiceAndSendsSuccessMessage()
     {
-        var (handler, bot, cycleService, stateService) = CreateHandler(shouldThrow: false);
+        var (handler, bot, cycleService) = CreateHandler(shouldThrow: false);
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
         Assert.True(cycleService.WasCalled);
         Assert.Single(bot.SentMessages);
         Assert.Contains("✅", bot.SentMessages[0]);
-        // H2 fix: state service should be updated
-        var state = stateService.GetState();
-        Assert.True(state.LastRunSuccess);
     }
 
     [Fact]
     public async Task HandleAsync_Failure_SendsErrorMessage()
     {
-        var (handler, bot, _, stateService) = CreateHandler(shouldThrow: true);
+        var (handler, bot, _) = CreateHandler(shouldThrow: true);
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
         Assert.Single(bot.SentMessages);
         Assert.Contains("❌", bot.SentMessages[0]);
-        // M3 fix: error message uses exception type name, not ex.Message (no credential leak)
+        // Error message uses exception type name (no credential leak)
         Assert.Contains("InvalidOperationException", bot.SentMessages[0]);
         Assert.DoesNotContain("API indisponible", bot.SentMessages[0]);
-        // H2 fix: state service should record failure
-        var state = stateService.GetState();
-        Assert.False(state.LastRunSuccess);
+    }
+
+    // --- Polly integration tests (M3 — code review 5.2) ---
+
+    private class RetryCountingCycleService : IPostingCycleService
+    {
+        public int CallCount { get; private set; }
+        public int FailCount { get; set; } = int.MaxValue;
+
+        public Task RunCycleAsync(CancellationToken ct = default)
+        {
+            CallCount++;
+            if (CallCount <= FailCount)
+                throw new InvalidOperationException($"Simulated failure #{CallCount}");
+            return Task.CompletedTask;
+        }
+    }
+
+    private static (RunCommandHandler handler, FakeTelegramBotClient bot, RetryCountingCycleService cycleService)
+        CreateHandlerWithRealPolly(int failCount, int maxRetryCount = 3)
+    {
+        var cycleService = new RetryCountingCycleService { FailCount = failCount };
+        var stateService = new ExecutionStateService();
+        var services = new ServiceCollection();
+        services.AddScoped<IPostingCycleService>(_ => cycleService);
+        var sp = services.BuildServiceProvider();
+
+        var options = Options.Create(new PosterOptions { MaxRetryCount = maxRetryCount, RetryDelayMs = 0 });
+        var resilience = new ResiliencePipelineService(options, NullLogger<ResiliencePipelineService>.Instance);
+        var handler = new RunCommandHandler(
+            sp.GetRequiredService<IServiceScopeFactory>(),
+            resilience,
+            stateService,
+            options,
+            NullLogger<RunCommandHandler>.Instance);
+        var bot = new FakeTelegramBotClient();
+        return (handler, bot, cycleService);
+    }
+
+    [Fact]
+    public async Task HandleAsync_FailsThenSucceeds_RetriesAndSendsSuccess()
+    {
+        // Fails once, succeeds on 2nd attempt
+        var (handler, bot, cycleService) = CreateHandlerWithRealPolly(failCount: 1, maxRetryCount: 3);
+
+        await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
+
+        Assert.Equal(2, cycleService.CallCount);
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("✅", bot.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_AllRetriesExhausted_SendsErrorWithRetryCount()
+    {
+        // All 3 attempts fail
+        var (handler, bot, cycleService) = CreateHandlerWithRealPolly(failCount: int.MaxValue, maxRetryCount: 3);
+
+        await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
+
+        Assert.Equal(3, cycleService.CallCount);
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("❌", bot.SentMessages[0]);
+        Assert.Contains("3 tentatives", bot.SentMessages[0]);
     }
 }
