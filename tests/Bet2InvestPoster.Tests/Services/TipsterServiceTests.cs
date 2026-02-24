@@ -1,0 +1,202 @@
+using System.Text.Json;
+using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Models;
+using Bet2InvestPoster.Services;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+
+namespace Bet2InvestPoster.Tests.Services;
+
+public class TipsterServiceTests : IDisposable
+{
+    private readonly string _tempDir;
+
+    public TipsterServiceTests()
+    {
+        _tempDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString());
+        Directory.CreateDirectory(_tempDir);
+    }
+
+    public void Dispose() => Directory.Delete(_tempDir, true);
+
+    private TipsterService CreateService(string? dataPath = null) =>
+        new(Options.Create(new PosterOptions { DataPath = dataPath ?? _tempDir }),
+            NullLogger<TipsterService>.Instance);
+
+    private void WriteTipsters(string json) =>
+        File.WriteAllText(Path.Combine(_tempDir, "tipsters.json"), json);
+
+    // --- 6.2: Valid file with multiple tipsters ---
+
+    [Fact]
+    public async Task LoadTipstersAsync_ValidFile_ReturnsParsedTipsters()
+    {
+        WriteTipsters("""
+        [
+            { "url": "https://bet2invest.com/tipster/100", "name": "Alice" },
+            { "url": "https://bet2invest.com/tipster/200", "name": "Bob" }
+        ]
+        """);
+
+        var result = await CreateService().LoadTipstersAsync();
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal("Alice", result[0].Name);
+        Assert.Equal("https://bet2invest.com/tipster/100", result[0].Url);
+        Assert.Equal(100, result[0].Id);
+        Assert.Equal("Bob", result[1].Name);
+        Assert.Equal(200, result[1].Id);
+    }
+
+    // --- 6.3: ID extraction from different URL formats ---
+
+    [Theory]
+    [InlineData("https://bet2invest.com/tipster/123", 123)]
+    [InlineData("https://bet2invest.com/fr/tipster/456", 456)]
+    [InlineData("https://bet2invest.com/tipster/789/", 789)]
+    public async Task LoadTipstersAsync_ExtractsIdFromVariousUrlFormats(string url, int expectedId)
+    {
+        WriteTipsters(JsonSerializer.Serialize(new[] { new { url, name = "Test" } }));
+
+        var result = await CreateService().LoadTipstersAsync();
+
+        Assert.Single(result);
+        Assert.Equal(expectedId, result[0].Id);
+    }
+
+    // --- 6.4: File not found ---
+
+    [Fact]
+    public async Task LoadTipstersAsync_FileNotFound_ThrowsFileNotFoundException()
+    {
+        // Directory exists but tipsters.json does not
+        var emptyDir = Path.Combine(_tempDir, "empty");
+        Directory.CreateDirectory(emptyDir);
+        var service = CreateService(emptyDir);
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => service.LoadTipstersAsync());
+    }
+
+    [Fact]
+    public async Task LoadTipstersAsync_DirectoryNotFound_ThrowsFileNotFoundException()
+    {
+        var service = CreateService(Path.Combine(_tempDir, "nonexistent"));
+
+        await Assert.ThrowsAsync<FileNotFoundException>(() => service.LoadTipstersAsync());
+    }
+
+    // --- 6.5: Invalid JSON ---
+
+    [Fact]
+    public async Task LoadTipstersAsync_InvalidJson_ThrowsJsonException()
+    {
+        WriteTipsters("not valid json {{{");
+
+        await Assert.ThrowsAsync<JsonException>(() => CreateService().LoadTipstersAsync());
+    }
+
+    // --- 6.6: Empty array ---
+
+    [Fact]
+    public async Task LoadTipstersAsync_EmptyArray_ReturnsEmptyList()
+    {
+        WriteTipsters("[]");
+
+        var result = await CreateService().LoadTipstersAsync();
+
+        Assert.Empty(result);
+    }
+
+    // --- 6.7: Invalid entries filtered ---
+
+    [Fact]
+    public async Task LoadTipstersAsync_InvalidEntries_FiltersThemOut()
+    {
+        WriteTipsters("""
+        [
+            { "url": "", "name": "EmptyUrl" },
+            { "url": "https://bet2invest.com/tipster/100", "name": "" },
+            { "url": "https://bet2invest.com/tipster/abc", "name": "NonNumericId" },
+            { "url": "https://bet2invest.com/tipster/200", "name": "Valid" }
+        ]
+        """);
+
+        var result = await CreateService().LoadTipstersAsync();
+
+        Assert.Single(result);
+        Assert.Equal("Valid", result[0].Name);
+        Assert.Equal(200, result[0].Id);
+    }
+
+    // --- 6.8: Hot-reload (re-read on every call) ---
+
+    [Fact]
+    public async Task LoadTipstersAsync_FileModifiedBetweenCalls_ReturnsUpdatedContent()
+    {
+        WriteTipsters("""[{ "url": "https://bet2invest.com/tipster/1", "name": "First" }]""");
+        var service = CreateService();
+
+        var first = await service.LoadTipstersAsync();
+        Assert.Single(first);
+        Assert.Equal("First", first[0].Name);
+
+        WriteTipsters("""
+        [
+            { "url": "https://bet2invest.com/tipster/1", "name": "First" },
+            { "url": "https://bet2invest.com/tipster/2", "name": "Second" }
+        ]
+        """);
+
+        var second = await service.LoadTipstersAsync();
+        Assert.Equal(2, second.Count);
+    }
+
+    // --- 6.9: DI Scoped registration ---
+
+    [Fact]
+    public void TipsterService_RegisteredAsScoped_DifferentInstancesPerScope()
+    {
+        var services = new ServiceCollection();
+        services.Configure<PosterOptions>(o => o.DataPath = _tempDir);
+        services.AddLogging();
+        services.AddScoped<ITipsterService, TipsterService>();
+        using var provider = services.BuildServiceProvider();
+
+        using var scope1 = provider.CreateScope();
+        using var scope2 = provider.CreateScope();
+        var instance1 = scope1.ServiceProvider.GetRequiredService<ITipsterService>();
+        var instance2 = scope2.ServiceProvider.GetRequiredService<ITipsterService>();
+
+        Assert.NotSame(instance1, instance2);
+    }
+
+    // --- L4: DI descriptor — lifetime and implementation type ---
+
+    [Fact]
+    public void TipsterService_DiDescriptor_HasScopedLifetimeAndCorrectImplementation()
+    {
+        var services = new ServiceCollection();
+        services.Configure<PosterOptions>(o => o.DataPath = _tempDir);
+        services.AddLogging();
+        services.AddScoped<ITipsterService, TipsterService>();
+
+        var descriptor = services.Single(d => d.ServiceType == typeof(ITipsterService));
+
+        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+        Assert.Equal(typeof(TipsterService), descriptor.ImplementationType);
+    }
+
+    // --- L2: JSON null string treated as empty list ---
+
+    [Fact]
+    public async Task LoadTipstersAsync_NullJsonContent_ReturnsEmptyList()
+    {
+        // "null" is syntactically valid JSON but deserializes to null
+        WriteTipsters("null");
+
+        var result = await CreateService().LoadTipstersAsync();
+
+        Assert.Empty(result);
+    }
+}

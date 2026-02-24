@@ -56,6 +56,9 @@ builder.Services.AddSingleton<Bet2InvestClient>(sp =>
 // ExtendedBet2InvestClient: Scoped — one instance per execution cycle.
 builder.Services.AddScoped<IExtendedBet2InvestClient, ExtendedBet2InvestClient>();
 
+// TipsterService: Scoped — reads tipsters.json on every cycle.
+builder.Services.AddScoped<ITipsterService, TipsterService>();
+
 var host = builder.Build();
 
 // Fast-fail: validate required credentials before starting
