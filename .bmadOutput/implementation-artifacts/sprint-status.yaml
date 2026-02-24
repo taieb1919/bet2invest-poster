@@ -58,8 +58,8 @@ development_status:
   3-3-bet-publisher-et-posting-cycle-service: done
   epic-3-retrospective: done
 
-  epic-4: backlog
-  4-1-bot-telegram-setup-polling-et-securite: backlog
+  epic-4: in-progress
+  4-1-bot-telegram-setup-polling-et-securite: done
   4-2-commandes-run-et-status: backlog
   4-3-notification-service-notifications-automatiques: backlog
   epic-4-retrospective: optional

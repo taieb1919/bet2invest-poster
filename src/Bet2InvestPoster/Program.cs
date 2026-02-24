@@ -1,6 +1,7 @@
 using Bet2InvestPoster;
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Telegram;
 using JTDev.Bet2InvestScraper.Api;
 using Microsoft.Extensions.Options;
 using Serilog;
@@ -73,6 +74,12 @@ builder.Services.AddScoped<IBetPublisher, BetPublisher>();
 
 // PostingCycleService: Scoped — orchestrates the full posting cycle per execution.
 builder.Services.AddScoped<IPostingCycleService, PostingCycleService>();
+
+// AuthorizationFilter: Singleton — filters authorized chat ID for Telegram commands.
+builder.Services.AddSingleton<AuthorizationFilter>();
+
+// TelegramBotService: HostedService — bot long polling running in background.
+builder.Services.AddHostedService<TelegramBotService>();
 
 var host = builder.Build();
 
