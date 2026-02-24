@@ -71,6 +71,7 @@ development_status:
 
   epic-6: in-progress
   6-1-deploiement-vps-et-configuration-systemd: done
-  6-2-validation-du-cycle-de-publication-manuel: in-progress
+  6-2-validation-du-cycle-de-publication-manuel: done
   6-3-validation-du-scheduling-quotidien-et-de-la-resilience: in-progress
-  epic-6-retrospective: optional
+  6-4-acceptance-finale-et-observation-24h: in-progress
+  epic-6-retrospective: optional  # À planifier après clôture epic-6 — apprentissages clés : HistoryManager Singleton, fixs systemd ExecStart, RetryDelayMs validation
