@@ -1,4 +1,4 @@
-# generated: 2026-02-23
+# generated: 2026-02-24
 # project: bet2invest-poster
 # project_key: NOKEY
 # tracking_system: file-system
@@ -33,7 +33,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-02-23
+generated: 2026-02-24
 project: bet2invest-poster
 project_key: NOKEY
 tracking_system: file-system
@@ -75,3 +75,42 @@ development_status:
   6-3-validation-du-scheduling-quotidien-et-de-la-resilience: in-progress
   6-4-acceptance-finale-et-observation-24h: in-progress
   epic-6-retrospective: optional  # À planifier après clôture epic-6 — apprentissages clés : HistoryManager Singleton, fixs systemd ExecStart, RetryDelayMs validation
+
+  # ============================================
+  # PHASE 2 — Post-MVP
+  # ============================================
+
+  epic-7: backlog
+  7-1-commandes-start-et-stop-controle-du-scheduling: backlog
+  7-2-commande-history-historique-des-publications: backlog
+  7-3-commande-schedule-configuration-horaire-via-telegram: backlog
+  epic-7-retrospective: optional
+
+  epic-8: backlog
+  8-1-commande-tipsters-consultation-de-la-liste: backlog
+  8-2-commandes-tipsters-add-et-tipsters-remove-crud-tipsters: backlog
+  epic-8-retrospective: optional
+
+  epic-9: backlog
+  9-1-filtrage-par-cotes-et-plage-horaire: backlog
+  epic-9-retrospective: optional
+
+  epic-10: backlog
+  10-1-onboarding-guide-via-telegram: backlog
+  10-2-rotation-des-logs-et-retention-configurable: backlog
+  10-3-resilience-polly-avancee-et-health-checks: backlog
+  epic-10-retrospective: optional
+
+  # ============================================
+  # PHASE 3 — Expansion
+  # ============================================
+
+  epic-11: backlog
+  11-1-commande-tipsters-update-scraping-et-suggestion-automatique: backlog
+  11-2-selection-multi-criteres-intelligente: backlog
+  epic-11-retrospective: optional
+
+  epic-12: backlog
+  12-1-suivi-des-resultats-des-pronostics-publies: backlog
+  12-2-commande-report-tableau-de-bord-des-performances: backlog
+  epic-12-retrospective: optional
