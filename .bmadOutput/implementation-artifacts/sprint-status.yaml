@@ -56,7 +56,7 @@ development_status:
   3-1-history-manager-stockage-doublons-et-purge: done
   3-2-bet-selector-selection-aleatoire: done
   3-3-bet-publisher-et-posting-cycle-service: done
-  epic-3-retrospective: optional
+  epic-3-retrospective: done
 
   epic-4: backlog
   4-1-bot-telegram-setup-polling-et-securite: backlog
