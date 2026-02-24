@@ -64,7 +64,13 @@ development_status:
   4-3-notification-service-notifications-automatiques: done
   epic-4-retrospective: done
 
-  epic-5: in-progress
+  epic-5: done
   5-1-scheduler-worker-execution-quotidienne-planifiee: done
-  5-2-resilience-polly-retry-du-cycle-complet: backlog
-  epic-5-retrospective: optional
+  5-2-resilience-polly-retry-du-cycle-complet: done
+  epic-5-retrospective: done
+
+  epic-6: backlog
+  6-1-deploiement-vps-et-configuration-systemd: backlog
+  6-2-validation-du-cycle-de-publication-manuel: backlog
+  6-3-validation-du-scheduling-quotidien-et-de-la-resilience: backlog
+  epic-6-retrospective: optional

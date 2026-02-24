@@ -4,6 +4,10 @@ stepsCompleted:
   - step-02-design-epics
   - step-03-create-stories
   - step-04-final-validation
+  - epic-6-step-01-prerequisites
+  - epic-6-step-02-design-epics
+  - epic-6-step-03-create-stories
+  - epic-6-step-04-final-validation
 inputDocuments:
   - .bmadOutput/planning-artifacts/prd.md
   - .bmadOutput/planning-artifacts/architecture.md
@@ -157,6 +161,11 @@ L'utilisateur contrôle et monitore le système via Telegram : /run, /status, no
 Le système s'exécute automatiquement chaque jour avec retry — zéro intervention après configuration.
 **FRs couvertes :** FR11, FR12, FR13
 **NFRs adressées :** NFR2
+
+### Epic 6 : Validation Manuelle en Production
+L'utilisateur confirme que le service fonctionne correctement de bout en bout sur le VPS réel — de la publication d'un premier pronostic jusqu'au scheduling quotidien automatique.
+**FRs validées :** FR1–FR23 (toutes — validation en conditions réelles)
+**NFRs vérifiées :** NFR1, NFR2, NFR3, NFR4, NFR5, NFR6, NFR7, NFR8, NFR12
 
 ## Epic 1 : Fondation du Projet et Configuration
 
@@ -401,3 +410,107 @@ So que les erreurs temporaires (réseau, API) ne bloquent pas la publication quo
 **And** chaque tentative est loguée (numéro de tentative, erreur rencontrée)
 **And** si les 3 tentatives échouent, `NotificationService` envoie l'alerte finale (FR18)
 **And** le taux de succès quotidien cible est > 95% hors indisponibilité API bet2invest (NFR2)
+
+## Epic 6 : Validation Manuelle en Production
+
+L'utilisateur confirme que le service fonctionne correctement de bout en bout sur le VPS réel — de la publication d'un premier pronostic jusqu'au scheduling quotidien automatique.
+
+### Story 6.1 : Déploiement VPS et Configuration Systemd
+
+As a l'utilisateur,
+I want déployer le service bet2invest-poster sur mon VPS avec un service systemd opérationnel,
+So that le service tourne en continu et redémarre automatiquement en cas de crash.
+
+**Acceptance Criteria :**
+
+**Given** le code compilé avec `dotnet publish -c Release`
+**When** les binaires sont copiés dans `/opt/bet2invest-poster/` sur le VPS
+**Then** le service démarre via `systemctl start bet2invest-poster` sans erreur
+
+**Given** le fichier `bet2invest-poster.service` installé dans `/etc/systemd/system/`
+**When** `systemctl enable bet2invest-poster` est exécuté
+**Then** le service redémarre automatiquement au boot et après un crash (NFR1)
+
+**Given** les variables d'environnement configurées dans le service systemd (`Bet2Invest__Identifier`, `Bet2Invest__Password`, `Telegram__BotToken`, `Telegram__AuthorizedChatId`, `Poster__BankrollId`)
+**When** le service démarre
+**Then** les credentials sont chargés depuis les env vars — jamais depuis `appsettings.json` en production (NFR5, NFR6)
+**And** `systemctl status bet2invest-poster` affiche `active (running)`
+
+**Given** le service en cours d'exécution
+**When** on consulte les logs via `journalctl -u bet2invest-poster -f`
+**Then** les logs Serilog apparaissent avec timestamp, Step et contexte structuré (NFR12)
+**And** aucun credential n'apparaît dans les logs (NFR5)
+
+**Given** le service actif
+**When** on tue le processus manuellement (`kill -9 <pid>`)
+**Then** systemd redémarre le service en moins de 30 secondes (NFR1)
+
+### Story 6.2 : Validation du Cycle de Publication Manuel
+
+As a l'utilisateur,
+I want exécuter `/run` depuis Telegram et vérifier qu'un pronostic est réellement publié sur bet2invest,
+So that je confirme que le pipeline complet fonctionne en conditions réelles.
+
+**Acceptance Criteria :**
+
+**Given** le service déployé et actif sur le VPS (story 6.1 complétée)
+**When** j'envoie `/run` depuis mon chat Telegram autorisé
+**Then** le bot répond `✅ Cycle exécuté avec succès` (FR14)
+**And** le nombre de pronostics publiés est mentionné dans la réponse
+
+**Given** le cycle `/run` exécuté avec succès
+**When** je consulte mon compte bet2invest
+**Then** les pronostics sélectionnés sont visibles sur le compte (FR9)
+**And** `history.json` sur le VPS contient les IDs des pronostics publiés (FR10)
+
+**Given** le service actif
+**When** j'envoie `/status` depuis Telegram (FR15)
+**Then** la réponse affiche : dernière exécution (date/heure + résultat), nombre de pronostics publiés, prochain run planifié, état de connexion API
+
+**Given** j'envoie `/run` une seconde fois le même jour
+**When** le cycle s'exécute
+**Then** aucun pronostic déjà publié n'est republié (FR8 — déduplication active via history.json)
+
+**Given** un chat Telegram non autorisé envoie `/run`
+**When** le bot reçoit la commande
+**Then** la commande est ignorée silencieusement — aucune réponse, aucune exécution (FR19, FR20, NFR7)
+
+**Given** le cycle en cours d'exécution
+**When** on consulte les logs via `journalctl`
+**Then** les logs structurés montrent les Steps Auth → Scrape → Select → Publish (NFR12)
+**And** le délai d'au moins 500ms entre requêtes API est respecté (NFR8)
+
+### Story 6.3 : Validation du Scheduling Quotidien et de la Résilience
+
+As a l'utilisateur,
+I want observer le déclenchement automatique du cycle à l'heure configurée et vérifier le comportement en cas d'erreur,
+So that je confirme que le service fonctionne sans aucune intervention de ma part au quotidien.
+
+**Acceptance Criteria :**
+
+**Given** `Poster__ScheduleTime` configuré à une heure proche (ex : dans 5 minutes)
+**When** l'heure configurée est atteinte
+**Then** le cycle se déclenche automatiquement sans commande `/run` (FR11)
+**And** une notification Telegram de succès est reçue dans les 5 minutes (FR16, NFR3)
+**And** `/status` affiche le prochain run planifié pour le lendemain à la même heure (FR13, FR15)
+
+**Given** le service redémarré après un arrêt volontaire (`systemctl restart`)
+**When** il redémarre
+**Then** le scheduling reprend correctement — le prochain run est recalculé depuis l'heure courante
+**And** aucune exécution en double n'est déclenchée
+
+**Given** le service actif pendant 24h+ après le déploiement
+**When** le cycle quotidien automatique s'exécute
+**Then** les pronostics sont publiés et `history.json` est mis à jour (NFR4 — pas de corruption)
+**And** la notification de succès arrive sur Telegram (FR16)
+
+**Given** une erreur simulée lors d'un cycle (ex : coupure réseau temporaire)
+**When** le cycle échoue sur la 1ère tentative
+**Then** Polly retente automatiquement jusqu'à 3 fois (FR12)
+**And** chaque tentative est loguée avec le numéro de tentative
+**And** si toutes les tentatives échouent, une notification d'échec définitif est reçue sur Telegram (FR18)
+**And** le scheduling reprend normalement le lendemain
+
+**Given** le service en production depuis plusieurs jours
+**When** on consulte `/status`
+**Then** l'historique des dernières exécutions reflète les cycles quotidiens réels
