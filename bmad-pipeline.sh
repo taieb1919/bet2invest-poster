@@ -234,15 +234,17 @@ ${changed_files}
 
 ETAPES:
 1. Lis le rapport de review ci-dessus attentivement
-2. Corrige TOUTES les issues identifiees (Critical et Major en priorite)
+2. Corrige TOUTES les issues identifiees — Critical, Major ET Minor/Low inclus
 3. Verifie la compilation: \`dotnet build src/Bet2InvestPoster\`
 4. Lance les tests: \`dotnet test tests/Bet2InvestPoster.Tests\`
-5. Si tout passe, ${commit_instruction}
+5. Met a jour le sprint-status: dans ${PROJECT_ROOT}/.bmadOutput/implementation-artifacts/sprint-status.yaml, change le statut de la story ${STORY_ID} (prefix: ${STORY_ID%.*}-${STORY_ID##*.}) pour refleter son avancement (ex: backlog→in-progress, in-progress→review, review→done selon la phase completee)
+6. Si tout passe, ${commit_instruction}
 
 REGLES DE COMMIT:
 - Format: type(scope): description
 - Le scope correspond au domaine principal modifie
 - Un seul commit pour l'ensemble des corrections
+- Inclure le fichier sprint-status.yaml modifie dans le commit
 PROMPT
 }
 
