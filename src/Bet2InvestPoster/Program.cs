@@ -68,8 +68,9 @@ builder.Services.AddScoped<ITipsterService, TipsterService>();
 // UpcomingBetsFetcher: Scoped — fetches and aggregates upcoming bets per cycle.
 builder.Services.AddScoped<IUpcomingBetsFetcher, UpcomingBetsFetcher>();
 
-// HistoryManager: Scoped — reads/writes history.json atomically per cycle.
-builder.Services.AddScoped<IHistoryManager, HistoryManager>();
+// HistoryManager: Singleton — SemaphoreSlim must be shared across all cycles (scheduler + /run).
+// Scoped would create a new instance per cycle, making the semaphore ineffective for inter-cycle protection.
+builder.Services.AddSingleton<IHistoryManager, HistoryManager>();
 
 // BetSelector: Scoped — filters duplicates and randomly selects 5/10/15 bets per cycle.
 builder.Services.AddScoped<IBetSelector, BetSelector>();
@@ -130,5 +131,10 @@ if (missingVars.Count > 0)
 if (b2iOpts.RequestDelayMs < 500)
     throw new InvalidOperationException(
         $"Bet2Invest:RequestDelayMs doit être >= 500ms (valeur actuelle : {b2iOpts.RequestDelayMs}ms)");
+
+// Délai minimum 1000ms entre tentatives Polly (évite les retries instantanés en boucle)
+if (posterOpts.RetryDelayMs < 1000)
+    throw new InvalidOperationException(
+        $"Poster:RetryDelayMs doit être >= 1000ms (valeur actuelle : {posterOpts.RetryDelayMs}ms)");
 
 host.Run();

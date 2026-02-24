@@ -32,8 +32,16 @@ public class HistoryManager : IHistoryManager
 
     public async Task<HashSet<string>> LoadPublishedKeysAsync(CancellationToken ct = default)
     {
-        var entries = await LoadEntriesAsync(ct);
-        return entries.Select(e => e.DeduplicationKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        await _semaphore.WaitAsync(ct);
+        try
+        {
+            var entries = await LoadEntriesAsync(ct);
+            return entries.Select(e => e.DeduplicationKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
     }
 
     // M3: LogContext scope wraps entire operation
@@ -73,23 +81,31 @@ public class HistoryManager : IHistoryManager
         if (!File.Exists(_historyPath))
             return;
 
-        var entries = await LoadEntriesAsync(ct);
-        var cutoff = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-30);
-        var purged = entries.RemoveAll(e => e.PublishedAt < cutoff);
-
-        using (LogContext.PushProperty("Step", "Purge"))
+        await _semaphore.WaitAsync(ct);
+        try
         {
-            if (purged > 0)
+            var entries = await LoadEntriesAsync(ct);
+            var cutoff = _timeProvider.GetUtcNow().UtcDateTime.AddDays(-30);
+            var purged = entries.RemoveAll(e => e.PublishedAt < cutoff);
+
+            using (LogContext.PushProperty("Step", "Purge"))
             {
-                await SaveAtomicAsync(entries, ct);
-                _logger.LogInformation(
-                    "{Count} entrée(s) purgées de l'historique (> 30 jours)", purged);
+                if (purged > 0)
+                {
+                    await SaveAtomicAsync(entries, ct);
+                    _logger.LogInformation(
+                        "{Count} entrée(s) purgées de l'historique (> 30 jours)", purged);
+                }
+                else
+                {
+                    _logger.LogInformation(
+                        "Aucune entrée à purger dans l'historique (0 entrée > 30 jours)");
+                }
             }
-            else
-            {
-                _logger.LogInformation(
-                    "Aucune entrée à purger dans l'historique (0 entrée > 30 jours)");
-            }
+        }
+        finally
+        {
+            _semaphore.Release();
         }
     }
 
