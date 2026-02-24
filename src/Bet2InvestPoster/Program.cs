@@ -1,8 +1,14 @@
-using Bet2InvestPoster;
 using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Telegram;
+using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Telegram.Formatters;
+using Bet2InvestPoster.Workers;
+using JTDev.Bet2InvestScraper.Api;
 using Microsoft.Extensions.Options;
 using Serilog;
 using Serilog.Events;
+using Telegram.Bot;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -40,7 +46,69 @@ builder.Services.Configure<TelegramOptions>(
 builder.Services.Configure<PosterOptions>(
     builder.Configuration.GetSection(PosterOptions.SectionName));
 
-builder.Services.AddHostedService<Worker>();
+// TimeProvider: Singleton — system clock used by SchedulerWorker (overridden in tests via FakeTimeProvider)
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<SchedulerWorker>();
+
+// Bet2InvestClient from the scraper submodule: Singleton — one instance shared across cycles.
+// Uses an adapter to bridge the scraper's IConsoleLogger to Microsoft.Extensions.Logging.
+builder.Services.AddSingleton<Bet2InvestClient>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<Bet2InvestOptions>>().Value;
+    var logger = sp.GetRequiredService<ILogger<Bet2InvestClient>>();
+    return new Bet2InvestClient(opts.ApiBase, opts.RequestDelayMs, new SerilogConsoleLoggerAdapter(logger));
+});
+
+// ExtendedBet2InvestClient: Scoped — one instance per execution cycle.
+builder.Services.AddScoped<IExtendedBet2InvestClient, ExtendedBet2InvestClient>();
+
+// TipsterService: Scoped — reads tipsters.json on every cycle.
+builder.Services.AddScoped<ITipsterService, TipsterService>();
+
+// UpcomingBetsFetcher: Scoped — fetches and aggregates upcoming bets per cycle.
+builder.Services.AddScoped<IUpcomingBetsFetcher, UpcomingBetsFetcher>();
+
+// HistoryManager: Singleton — SemaphoreSlim must be shared across all cycles (scheduler + /run).
+// Scoped would create a new instance per cycle, making the semaphore ineffective for inter-cycle protection.
+builder.Services.AddSingleton<IHistoryManager, HistoryManager>();
+
+// BetSelector: Scoped — filters duplicates and randomly selects 5/10/15 bets per cycle.
+builder.Services.AddScoped<IBetSelector, BetSelector>();
+
+// BetPublisher: Scoped — publishes selected bets via API and records them in history.
+builder.Services.AddScoped<IBetPublisher, BetPublisher>();
+
+// PostingCycleService: Scoped — orchestrates the full posting cycle per execution.
+builder.Services.AddScoped<IPostingCycleService, PostingCycleService>();
+
+// ResiliencePipelineService: Singleton — builds ResiliencePipeline once from config.
+builder.Services.AddSingleton<IResiliencePipelineService, ResiliencePipelineService>();
+
+// AuthorizationFilter: Singleton — filters authorized chat ID for Telegram commands.
+builder.Services.AddSingleton<AuthorizationFilter>();
+
+// ITelegramBotClient: Singleton — shared between TelegramBotService (polling) and NotificationService (outgoing).
+builder.Services.AddSingleton<ITelegramBotClient>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<TelegramOptions>>().Value;
+    return new TelegramBotClient(opts.BotToken);
+});
+
+// NotificationService: Singleton — sole service authorized to send outgoing Telegram messages.
+builder.Services.AddSingleton<INotificationService, NotificationService>();
+
+// ExecutionStateService: Singleton — tracks last/next run state for /status command.
+builder.Services.AddSingleton<IExecutionStateService, ExecutionStateService>();
+
+// MessageFormatter: Singleton — formats Telegram status messages.
+builder.Services.AddSingleton<IMessageFormatter, MessageFormatter>();
+
+// Command handlers: Singleton — /run and /status dispatch.
+builder.Services.AddSingleton<ICommandHandler, RunCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, StatusCommandHandler>();
+
+// TelegramBotService: HostedService — bot long polling running in background.
+builder.Services.AddHostedService<TelegramBotService>();
 
 var host = builder.Build();
 
@@ -48,13 +116,30 @@ var host = builder.Build();
 // Credentials must be provided via environment variables, never in appsettings.json
 var b2iOpts = host.Services.GetRequiredService<IOptions<Bet2InvestOptions>>().Value;
 var tgOpts = host.Services.GetRequiredService<IOptions<TelegramOptions>>().Value;
+var posterOpts = host.Services.GetRequiredService<IOptions<PosterOptions>>().Value;
 var missingVars = new List<string>();
 if (string.IsNullOrWhiteSpace(b2iOpts.Identifier)) missingVars.Add("Bet2Invest__Identifier");
 if (string.IsNullOrWhiteSpace(b2iOpts.Password)) missingVars.Add("Bet2Invest__Password");
 if (string.IsNullOrWhiteSpace(tgOpts.BotToken)) missingVars.Add("Telegram__BotToken");
 if (tgOpts.AuthorizedChatId == 0) missingVars.Add("Telegram__AuthorizedChatId");
+if (string.IsNullOrWhiteSpace(posterOpts.BankrollId)) missingVars.Add("Poster__BankrollId");
 if (missingVars.Count > 0)
     throw new InvalidOperationException(
         $"Required environment variables not configured: {string.Join(", ", missingVars)}");
+
+// Poster__BankrollId doit être un entier valide (utilisé par int.Parse dans BetPublisher)
+if (!int.TryParse(posterOpts.BankrollId, out _))
+    throw new InvalidOperationException(
+        $"Poster:BankrollId doit être un entier valide (valeur actuelle : '{posterOpts.BankrollId}')");
+
+// NFR8 : délai minimum 500ms entre requêtes API (rate limiting)
+if (b2iOpts.RequestDelayMs < 500)
+    throw new InvalidOperationException(
+        $"Bet2Invest:RequestDelayMs doit être >= 500ms (valeur actuelle : {b2iOpts.RequestDelayMs}ms)");
+
+// Délai minimum 1000ms entre tentatives Polly (évite les retries instantanés en boucle)
+if (posterOpts.RetryDelayMs < 1000)
+    throw new InvalidOperationException(
+        $"Poster:RetryDelayMs doit être >= 1000ms (valeur actuelle : {posterOpts.RetryDelayMs}ms)");
 
 host.Run();

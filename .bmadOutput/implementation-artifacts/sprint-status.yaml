@@ -46,25 +46,32 @@ development_status:
   1-3-deploiement-vps-et-service-systemd: done
   epic-1-retrospective: done
 
-  epic-2: backlog
-  2-1-extended-bet2invest-client-authentification-et-wrapper: backlog
-  2-2-lecture-des-tipsters: backlog
-  2-3-recuperation-des-paris-a-venir: backlog
-  epic-2-retrospective: optional
+  epic-2: done
+  2-1-extended-bet2invest-client-authentification-et-wrapper: done
+  2-2-lecture-des-tipsters: done
+  2-3-recuperation-des-paris-a-venir: done
+  epic-2-retrospective: done
 
-  epic-3: backlog
-  3-1-history-manager-stockage-doublons-et-purge: backlog
-  3-2-bet-selector-selection-aleatoire: backlog
-  3-3-bet-publisher-et-posting-cycle-service: backlog
-  epic-3-retrospective: optional
+  epic-3: done
+  3-1-history-manager-stockage-doublons-et-purge: done
+  3-2-bet-selector-selection-aleatoire: done
+  3-3-bet-publisher-et-posting-cycle-service: done
+  epic-3-retrospective: done
 
-  epic-4: backlog
-  4-1-bot-telegram-setup-polling-et-securite: backlog
-  4-2-commandes-run-et-status: backlog
-  4-3-notification-service-notifications-automatiques: backlog
-  epic-4-retrospective: optional
+  epic-4: done
+  4-1-bot-telegram-setup-polling-et-securite: done
+  4-2-commandes-run-et-status: done
+  4-3-notification-service-notifications-automatiques: done
+  epic-4-retrospective: done
 
-  epic-5: backlog
-  5-1-scheduler-worker-execution-quotidienne-planifiee: backlog
-  5-2-resilience-polly-retry-du-cycle-complet: backlog
-  epic-5-retrospective: optional
+  epic-5: done
+  5-1-scheduler-worker-execution-quotidienne-planifiee: done
+  5-2-resilience-polly-retry-du-cycle-complet: done
+  epic-5-retrospective: done
+
+  epic-6: in-progress
+  6-1-deploiement-vps-et-configuration-systemd: done
+  6-2-validation-du-cycle-de-publication-manuel: done
+  6-3-validation-du-scheduling-quotidien-et-de-la-resilience: in-progress
+  6-4-acceptance-finale-et-observation-24h: in-progress
+  epic-6-retrospective: optional  # À planifier après clôture epic-6 — apprentissages clés : HistoryManager Singleton, fixs systemd ExecStart, RetryDelayMs validation

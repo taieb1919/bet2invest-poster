@@ -9,4 +9,5 @@ public class PosterOptions
     public int MaxRetryCount { get; set; } = 3;
     public string DataPath { get; set; } = ".";
     public string LogPath { get; set; } = "logs";
+    public string BankrollId { get; set; } = "";
 }

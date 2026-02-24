@@ -10,7 +10,7 @@ Type=notify
 User=bet2invest
 Group=bet2invest
 WorkingDirectory=/opt/bet2invest-poster
-ExecStart=/usr/bin/dotnet /opt/bet2invest-poster/Bet2InvestPoster.dll
+ExecStart=/usr/local/bin/dotnet /opt/bet2invest-poster/Bet2InvestPoster.dll
 
 # Redémarrage automatique (NFR1 : délai < 30s)
 # Restart=always : redémarre aussi après un arrêt propre (exit 0) pour garantir le service continu
@@ -25,12 +25,12 @@ RestartSec=5
 #   Bet2Invest__Password=your_password
 #   Telegram__BotToken=123456:ABC-DEF...
 #   Telegram__AuthorizedChatId=123456789
+#   Poster__BankrollId=your_bankroll_id
 # Protéger le fichier : chmod 600 /etc/bet2invest-poster/env, chown root:bet2invest
 EnvironmentFile=/etc/bet2invest-poster/env
 
 # Variables non-sensibles
 Environment=DOTNET_ENVIRONMENT=Production
-Environment=ASPNETCORE_ENVIRONMENT=Production
 
 # Identification dans journald (journalctl -u bet2invest-poster)
 SyslogIdentifier=bet2invest-poster
