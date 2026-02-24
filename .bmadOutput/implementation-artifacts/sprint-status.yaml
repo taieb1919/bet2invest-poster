@@ -49,7 +49,7 @@ development_status:
   epic-2: in-progress
   2-1-extended-bet2invest-client-authentification-et-wrapper: done
   2-2-lecture-des-tipsters: done
-  2-3-recuperation-des-paris-a-venir: backlog
+  2-3-recuperation-des-paris-a-venir: done
   epic-2-retrospective: optional
 
   epic-3: backlog

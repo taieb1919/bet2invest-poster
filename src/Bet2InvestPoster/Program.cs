@@ -59,6 +59,9 @@ builder.Services.AddScoped<IExtendedBet2InvestClient, ExtendedBet2InvestClient>(
 // TipsterService: Scoped — reads tipsters.json on every cycle.
 builder.Services.AddScoped<ITipsterService, TipsterService>();
 
+// UpcomingBetsFetcher: Scoped — fetches and aggregates upcoming bets per cycle.
+builder.Services.AddScoped<IUpcomingBetsFetcher, UpcomingBetsFetcher>();
+
 var host = builder.Build();
 
 // Fast-fail: validate required credentials before starting

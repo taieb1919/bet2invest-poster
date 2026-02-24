@@ -134,6 +134,46 @@ public class ExtendedBet2InvestClientTests
         Assert.Equal(2, loginCount);
     }
 
+    // ─── canSeeBets Tuple Extraction Tests ─────────────────────────
+
+    [Fact]
+    public async Task GetUpcomingBets_ReturnsCanSeeBetsTrue_FromJsonResponse()
+    {
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
+            return StatisticsSuccess(); // canSeeBets:true, pending:[]
+        });
+
+        var client = CreateClient(handler);
+        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync(1);
+
+        Assert.True(canSeeBets);
+        Assert.Empty(bets);
+    }
+
+    [Fact]
+    public async Task GetUpcomingBets_ReturnsCanSeeBetsFalse_WhenApiIndicatesRestricted()
+    {
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    @"{""bets"":{""pending"":[],""pendingNumber"":0,""canSeeBets"":false}}",
+                    Encoding.UTF8,
+                    "application/json")
+            };
+        });
+
+        var client = CreateClient(handler);
+        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync(1);
+
+        Assert.False(canSeeBets);
+        Assert.Empty(bets);
+    }
+
     // ─── Rate Limiting Test ─────────────────────────────────────────
 
     [Fact]

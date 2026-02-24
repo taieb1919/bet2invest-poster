@@ -16,10 +16,11 @@ public interface IExtendedBet2InvestClient
     Task LoginAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Returns the pending (upcoming) bets for the given tipster.
-    /// Calls GET /v1/statistics/{tipsterId} (authenticated) and extracts bets.pending.
+    /// Returns the pending (upcoming) bets for the given tipster and whether the authenticated
+    /// user can see that tipster's bets (canSeeBets). Calls GET /v1/statistics/{tipsterId}.
+    /// When canSeeBets is false the tipster is pro/restricted; bets will be empty.
     /// </summary>
-    Task<List<SettledBet>> GetUpcomingBetsAsync(int tipsterId, CancellationToken ct = default);
+    Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(int tipsterId, CancellationToken ct = default);
 
     /// <summary>Publishes a bet order via POST /v1/bet-orders. Returns the order ID if available.</summary>
     Task<string?> PublishBetAsync(BetOrderRequest bet, CancellationToken ct = default);

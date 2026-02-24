@@ -153,7 +153,7 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
 
     // ─── Upcoming Bets (GET /v1/statistics/{tipsterId}) ───────────
 
-    public async Task<List<SettledBet>> GetUpcomingBetsAsync(int tipsterId, CancellationToken ct = default)
+    public async Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(int tipsterId, CancellationToken ct = default)
     {
         await EnsureAuthenticatedAsync(ct);
 
@@ -172,13 +172,14 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
             }
 
             var statistics = await response.Content.ReadFromJsonAsync<StatisticsResponse>(JsonOptions, ct);
-            var pendingBets = statistics?.Bets?.Pending ?? [];
+            var bets = statistics?.Bets?.Pending ?? [];
+            var canSeeBets = statistics?.Bets?.CanSeeBets ?? false;
 
             _logger.LogInformation(
-                "Paris à venir récupérés pour tipster {TipsterId} : {Count} paris en attente",
-                tipsterId, pendingBets.Count);
+                "Paris à venir récupérés pour tipster {TipsterId} : {Count} paris en attente (canSeeBets={CanSeeBets})",
+                tipsterId, bets.Count, canSeeBets);
 
-            return pendingBets;
+            return (canSeeBets, bets);
         }
     }
 
