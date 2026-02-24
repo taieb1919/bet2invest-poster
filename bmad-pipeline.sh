@@ -671,6 +671,11 @@ interactive_mode() {
     fi
 }
 
+# ─── Main Execution (skipped when sourced) ───────────────────────────────────
+if [[ "${BMAD_SOURCED:-}" == "true" ]]; then
+    return 0 2>/dev/null || exit 0
+fi
+
 # ─── Parse Arguments ─────────────────────────────────────────────────────────
 
 INTERACTIVE=false
