@@ -44,6 +44,25 @@ public class SchedulerWorkerTests
         public void SetApiConnectionStatus(bool connected) { }
         public bool GetSchedulingEnabled() => true;
         public void SetSchedulingEnabled(bool enabled) { }
+        public string GetScheduleTime() => "08:00";
+        public void SetScheduleTime(string time) { }
+    }
+
+    private class DynamicScheduleExecutionStateService : IExecutionStateService
+    {
+        private string _scheduleTime = "08:00";
+        public DateTimeOffset? NextRunSet { get; private set; }
+        public int SetNextRunCallCount { get; private set; }
+
+        public ExecutionState GetState() => new(null, null, null, NextRunSet, null);
+        public void RecordSuccess(int publishedCount) { }
+        public void RecordFailure(string reason) { }
+        public void SetNextRun(DateTimeOffset nextRunAt) { NextRunSet = nextRunAt; SetNextRunCallCount++; }
+        public void SetApiConnectionStatus(bool connected) { }
+        public bool GetSchedulingEnabled() => true;
+        public void SetSchedulingEnabled(bool enabled) { }
+        public string GetScheduleTime() => _scheduleTime;
+        public void SetScheduleTime(string time) => _scheduleTime = time;
     }
 
     // Pass-through: executes the action once, no retry (for existing tests unrelated to Polly)
@@ -132,6 +151,37 @@ public class SchedulerWorkerTests
 
         var expected = new DateTimeOffset(2026, 2, 26, 8, 0, 0, TimeSpan.Zero);
         Assert.Equal(expected, next);
+    }
+
+    [Fact]
+    public void CalculateNextRun_UsesExecutionStateServiceScheduleTime_Dynamically()
+    {
+        // 07:00 UTC — schedule initially 08:00
+        var now = new DateTimeOffset(2026, 2, 25, 7, 0, 0, TimeSpan.Zero);
+        var fakeTime = new FakeTimeProvider(now);
+        var dynamicState = new DynamicScheduleExecutionStateService();
+        var (worker, _) = CreateWorker(fakeTime, new FakeExecutionStateService(), new FakePostingCycleService());
+
+        // Create worker directly with dynamic state for CalculateNextRun
+        var services = new ServiceCollection();
+        services.AddScoped<IPostingCycleService>(_ => new FakePostingCycleService());
+        var sp = services.BuildServiceProvider();
+        var options = Options.Create(new PosterOptions { ScheduleTime = "08:00", MaxRetryCount = 3 });
+        var workerDynamic = new SchedulerWorker(
+            sp, dynamicState,
+            new FakeResiliencePipelineService(),
+            new FakeNotificationService(),
+            options, fakeTime,
+            NullLogger<SchedulerWorker>.Instance);
+
+        // Avec 08:00 initial
+        var next1 = workerDynamic.CalculateNextRun();
+        Assert.Equal(new DateTimeOffset(2026, 2, 25, 8, 0, 0, TimeSpan.Zero), next1);
+
+        // Changer l'heure → 14:30
+        dynamicState.SetScheduleTime("14:30");
+        var next2 = workerDynamic.CalculateNextRun();
+        Assert.Equal(new DateTimeOffset(2026, 2, 25, 14, 30, 0, TimeSpan.Zero), next2);
     }
 
     // ──────────────────────── ExecuteAsync tests ────────────────────────────
@@ -278,6 +328,8 @@ public class SchedulerWorkerTests
         public void SetApiConnectionStatus(bool connected) { }
         public bool GetSchedulingEnabled() => _schedulingEnabled;
         public void SetSchedulingEnabled(bool enabled) => _schedulingEnabled = enabled;
+        public string GetScheduleTime() => "08:00";
+        public void SetScheduleTime(string time) { }
     }
 
     [Fact]

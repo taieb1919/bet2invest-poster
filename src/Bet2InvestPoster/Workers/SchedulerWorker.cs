@@ -13,9 +13,9 @@ public class SchedulerWorker : BackgroundService
     private readonly IResiliencePipelineService _resiliencePipelineService;
     private readonly INotificationService _notificationService;
     private readonly int _maxRetryCount;
-    private readonly TimeOnly _scheduleTime;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<SchedulerWorker> _logger;
+    private string? _lastScheduleTime;
 
     public SchedulerWorker(
         IServiceProvider serviceProvider,
@@ -31,7 +31,6 @@ public class SchedulerWorker : BackgroundService
         _resiliencePipelineService = resiliencePipelineService;
         _notificationService = notificationService;
         _maxRetryCount = options.Value.MaxRetryCount;
-        _scheduleTime = TimeOnly.Parse(options.Value.ScheduleTime, CultureInfo.InvariantCulture);
         _timeProvider = timeProvider;
         _logger = logger;
     }
@@ -42,11 +41,23 @@ public class SchedulerWorker : BackgroundService
         {
             _logger.LogInformation(
                 "SchedulerWorker démarré — exécution planifiée à {ScheduleTime} chaque jour",
-                _scheduleTime);
+                _executionStateService.GetScheduleTime());
         }
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            var currentScheduleTime = _executionStateService.GetScheduleTime();
+            if (_lastScheduleTime is not null && _lastScheduleTime != currentScheduleTime)
+            {
+                using (LogContext.PushProperty("Step", "Schedule"))
+                {
+                    _logger.LogInformation(
+                        "Heure de scheduling modifiée : {OldTime} → {NewTime}",
+                        _lastScheduleTime, currentScheduleTime);
+                }
+            }
+            _lastScheduleTime = currentScheduleTime;
+
             var nextRun = CalculateNextRun();
             _executionStateService.SetNextRun(nextRun);
 
@@ -109,10 +120,11 @@ public class SchedulerWorker : BackgroundService
 
     internal DateTimeOffset CalculateNextRun()
     {
+        var scheduleTime = TimeOnly.Parse(_executionStateService.GetScheduleTime(), CultureInfo.InvariantCulture);
         var now = _timeProvider.GetUtcNow();
         var todayAtSchedule = new DateTimeOffset(
             now.Year, now.Month, now.Day,
-            _scheduleTime.Hour, _scheduleTime.Minute, 0, TimeSpan.Zero);
+            scheduleTime.Hour, scheduleTime.Minute, 0, TimeSpan.Zero);
 
         return todayAtSchedule > now ? todayAtSchedule : todayAtSchedule.AddDays(1);
     }

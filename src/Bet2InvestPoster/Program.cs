@@ -97,15 +97,25 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
 // NotificationService: Singleton — sole service authorized to send outgoing Telegram messages.
 builder.Services.AddSingleton<INotificationService, NotificationService>();
 
-// ExecutionStateService: Singleton — tracks last/next run state for /status command.
-builder.Services.AddSingleton<IExecutionStateService, ExecutionStateService>();
+// ExecutionStateService: Singleton — tracks last/next run state et scheduling enabled/disabled.
+// DataPath injecté pour la persistance de l'état de scheduling (scheduling-state.json).
+builder.Services.AddSingleton<IExecutionStateService>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<PosterOptions>>().Value;
+    var logger = sp.GetRequiredService<ILogger<ExecutionStateService>>();
+    return new ExecutionStateService(opts.DataPath, opts.ScheduleTime, logger);
+});
 
 // MessageFormatter: Singleton — formats Telegram status messages.
 builder.Services.AddSingleton<IMessageFormatter, MessageFormatter>();
 
-// Command handlers: Singleton — /run and /status dispatch.
+// Command handlers: Singleton — /run, /status, /start, /stop dispatch.
 builder.Services.AddSingleton<ICommandHandler, RunCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, StatusCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, StartCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, StopCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, HistoryCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, ScheduleCommandHandler>();
 
 // TelegramBotService: HostedService — bot long polling running in background.
 builder.Services.AddHostedService<TelegramBotService>();
