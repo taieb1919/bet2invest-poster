@@ -60,7 +60,7 @@ development_status:
 
   epic-4: in-progress
   4-1-bot-telegram-setup-polling-et-securite: done
-  4-2-commandes-run-et-status: backlog
+  4-2-commandes-run-et-status: done
   4-3-notification-service-notifications-automatiques: backlog
   epic-4-retrospective: optional
 

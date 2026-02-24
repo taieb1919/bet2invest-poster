@@ -2,6 +2,8 @@ using Bet2InvestPoster;
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram;
+using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Telegram.Formatters;
 using JTDev.Bet2InvestScraper.Api;
 using Microsoft.Extensions.Options;
 using Serilog;
@@ -77,6 +79,16 @@ builder.Services.AddScoped<IPostingCycleService, PostingCycleService>();
 
 // AuthorizationFilter: Singleton — filters authorized chat ID for Telegram commands.
 builder.Services.AddSingleton<AuthorizationFilter>();
+
+// ExecutionStateService: Singleton — tracks last/next run state for /status command.
+builder.Services.AddSingleton<IExecutionStateService, ExecutionStateService>();
+
+// MessageFormatter: Singleton — formats Telegram status messages.
+builder.Services.AddSingleton<IMessageFormatter, MessageFormatter>();
+
+// Command handlers: Singleton — /run and /status dispatch.
+builder.Services.AddSingleton<ICommandHandler, RunCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, StatusCommandHandler>();
 
 // TelegramBotService: HostedService — bot long polling running in background.
 builder.Services.AddHostedService<TelegramBotService>();

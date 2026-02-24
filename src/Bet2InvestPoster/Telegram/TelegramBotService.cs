@@ -1,4 +1,5 @@
 using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Telegram.Commands;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,16 +15,19 @@ public class TelegramBotService : BackgroundService
 {
     private readonly TelegramOptions _options;
     private readonly AuthorizationFilter _authFilter;
+    private readonly IEnumerable<ICommandHandler> _handlers;
     private readonly ILogger<TelegramBotService> _logger;
     private volatile int _retryDelaySeconds = 1;
 
     public TelegramBotService(
         IOptions<TelegramOptions> options,
         AuthorizationFilter authFilter,
+        IEnumerable<ICommandHandler> handlers,
         ILogger<TelegramBotService> logger)
     {
         _options = options.Value;
         _authFilter = authFilter;
+        _handlers = handlers;
         _logger = logger;
     }
 
@@ -58,22 +62,33 @@ public class TelegramBotService : BackgroundService
         }
     }
 
-    private Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
+    private async Task HandleUpdateAsync(ITelegramBotClient bot, Update update, CancellationToken ct)
     {
         _retryDelaySeconds = 1; // Reset backoff — any update proves connectivity
 
         var chatId = update.Message?.Chat.Id ?? 0;
         if (chatId == 0 || !_authFilter.IsAuthorized(chatId))
-            return Task.CompletedTask;
+            return;
+
+        var text = update.Message?.Text ?? string.Empty;
+        var command = text.Split(' ')[0].ToLowerInvariant();
 
         using (LogContext.PushProperty("Step", "Notify"))
         {
-            var text = update.Message?.Text ?? "(no text)";
-            _logger.LogInformation("Message reçu — commande: {Command}", text);
+            _logger.LogInformation("Message reçu — commande: {Command}", command);
         }
 
-        // Story 4.2 ajoutera le dispatch des commandes /run et /status
-        return Task.CompletedTask;
+        var handler = _handlers.FirstOrDefault(h => h.CanHandle(command));
+        if (handler is not null)
+        {
+            await handler.HandleAsync(bot, update.Message!, ct);
+        }
+        else
+        {
+            await bot.SendMessage(chatId,
+                "Commande inconnue. Commandes disponibles : /run, /status",
+                cancellationToken: ct);
+        }
     }
 
     private async Task HandleErrorAsync(ITelegramBotClient bot, Exception ex, HandleErrorSource source, CancellationToken ct)
