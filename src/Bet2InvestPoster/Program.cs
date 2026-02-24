@@ -62,6 +62,9 @@ builder.Services.AddScoped<ITipsterService, TipsterService>();
 // UpcomingBetsFetcher: Scoped — fetches and aggregates upcoming bets per cycle.
 builder.Services.AddScoped<IUpcomingBetsFetcher, UpcomingBetsFetcher>();
 
+// HistoryManager: Scoped — reads/writes history.json atomically per cycle.
+builder.Services.AddScoped<IHistoryManager, HistoryManager>();
+
 var host = builder.Build();
 
 // Fast-fail: validate required credentials before starting
