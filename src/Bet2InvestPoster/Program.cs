@@ -1,9 +1,9 @@
-using Bet2InvestPoster;
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram;
 using Bet2InvestPoster.Telegram.Commands;
 using Bet2InvestPoster.Telegram.Formatters;
+using Bet2InvestPoster.Workers;
 using JTDev.Bet2InvestScraper.Api;
 using Microsoft.Extensions.Options;
 using Serilog;
@@ -46,7 +46,9 @@ builder.Services.Configure<TelegramOptions>(
 builder.Services.Configure<PosterOptions>(
     builder.Configuration.GetSection(PosterOptions.SectionName));
 
-builder.Services.AddHostedService<Worker>();
+// TimeProvider: Singleton — system clock used by SchedulerWorker (overridden in tests via FakeTimeProvider)
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddHostedService<SchedulerWorker>();
 
 // Bet2InvestClient from the scraper submodule: Singleton — one instance shared across cycles.
 // Uses an adapter to bridge the scraper's IConsoleLogger to Microsoft.Extensions.Logging.
