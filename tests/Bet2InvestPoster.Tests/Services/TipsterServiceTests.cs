@@ -34,8 +34,8 @@ public class TipsterServiceTests : IDisposable
     {
         WriteTipsters("""
         [
-            { "url": "https://bet2invest.com/tipster/100", "name": "Alice" },
-            { "url": "https://bet2invest.com/tipster/200", "name": "Bob" }
+            { "url": "https://bet2invest.com/tipsters/performance-stats/Alice", "name": "Alice" },
+            { "url": "https://bet2invest.com/tipsters/performance-stats/Bob", "name": "Bob" }
         ]
         """);
 
@@ -43,26 +43,26 @@ public class TipsterServiceTests : IDisposable
 
         Assert.Equal(2, result.Count);
         Assert.Equal("Alice", result[0].Name);
-        Assert.Equal("https://bet2invest.com/tipster/100", result[0].Url);
-        Assert.Equal(100, result[0].Id);
+        Assert.Equal("https://bet2invest.com/tipsters/performance-stats/Alice", result[0].Url);
+        Assert.Equal("Alice", result[0].Id);
         Assert.Equal("Bob", result[1].Name);
-        Assert.Equal(200, result[1].Id);
+        Assert.Equal("Bob", result[1].Id);
     }
 
-    // --- 6.3: ID extraction from different URL formats ---
+    // --- 6.3: Slug extraction from different URL formats ---
 
     [Theory]
-    [InlineData("https://bet2invest.com/tipster/123", 123)]
-    [InlineData("https://bet2invest.com/fr/tipster/456", 456)]
-    [InlineData("https://bet2invest.com/tipster/789/", 789)]
-    public async Task LoadTipstersAsync_ExtractsIdFromVariousUrlFormats(string url, int expectedId)
+    [InlineData("https://bet2invest.com/tipsters/performance-stats/NG1", "NG1")]
+    [InlineData("https://bet2invest.com/tipsters/performance-stats/Edge_Analytics", "Edge_Analytics")]
+    [InlineData("https://bet2invest.com/tipsters/performance-stats/Slug/", "Slug")]
+    public async Task LoadTipstersAsync_ExtractsSlugFromVariousUrlFormats(string url, string expectedSlug)
     {
         WriteTipsters(JsonSerializer.Serialize(new[] { new { url, name = "Test" } }));
 
         var result = await CreateService().LoadTipstersAsync();
 
         Assert.Single(result);
-        Assert.Equal(expectedId, result[0].Id);
+        Assert.Equal(expectedSlug, result[0].Id);
     }
 
     // --- 6.4: File not found ---
@@ -116,9 +116,9 @@ public class TipsterServiceTests : IDisposable
         WriteTipsters("""
         [
             { "url": "", "name": "EmptyUrl" },
-            { "url": "https://bet2invest.com/tipster/100", "name": "" },
-            { "url": "https://bet2invest.com/tipster/abc", "name": "NonNumericId" },
-            { "url": "https://bet2invest.com/tipster/200", "name": "Valid" }
+            { "url": "https://bet2invest.com/tipsters/performance-stats/Valid", "name": "" },
+            { "url": "not-a-valid-url", "name": "BadUrl" },
+            { "url": "https://bet2invest.com/tipsters/performance-stats/Valid", "name": "Valid" }
         ]
         """);
 
@@ -126,7 +126,7 @@ public class TipsterServiceTests : IDisposable
 
         Assert.Single(result);
         Assert.Equal("Valid", result[0].Name);
-        Assert.Equal(200, result[0].Id);
+        Assert.Equal("Valid", result[0].Id);
     }
 
     // --- 6.8: Hot-reload (re-read on every call) ---
@@ -134,7 +134,7 @@ public class TipsterServiceTests : IDisposable
     [Fact]
     public async Task LoadTipstersAsync_FileModifiedBetweenCalls_ReturnsUpdatedContent()
     {
-        WriteTipsters("""[{ "url": "https://bet2invest.com/tipster/1", "name": "First" }]""");
+        WriteTipsters("""[{ "url": "https://bet2invest.com/tipsters/performance-stats/First", "name": "First" }]""");
         var service = CreateService();
 
         var first = await service.LoadTipstersAsync();
@@ -143,8 +143,8 @@ public class TipsterServiceTests : IDisposable
 
         WriteTipsters("""
         [
-            { "url": "https://bet2invest.com/tipster/1", "name": "First" },
-            { "url": "https://bet2invest.com/tipster/2", "name": "Second" }
+            { "url": "https://bet2invest.com/tipsters/performance-stats/First", "name": "First" },
+            { "url": "https://bet2invest.com/tipsters/performance-stats/Second", "name": "Second" }
         ]
         """);
 

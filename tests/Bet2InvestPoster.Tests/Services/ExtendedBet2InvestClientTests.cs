@@ -83,7 +83,7 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        await client.GetUpcomingBetsAsync(1);
+        await client.GetUpcomingBetsAsync("tipster1");
 
         Assert.True(loginCalled, "LoginAsync devrait être appelé quand non authentifié");
     }
@@ -104,9 +104,9 @@ public class ExtendedBet2InvestClientTests
 
         var client = CreateClient(handler);
         // First call triggers login.
-        await client.GetUpcomingBetsAsync(1);
+        await client.GetUpcomingBetsAsync("tipster1");
         // Second call: token still valid → no re-login.
-        await client.GetUpcomingBetsAsync(2);
+        await client.GetUpcomingBetsAsync("tipster2");
 
         Assert.Equal(1, loginCount);
     }
@@ -127,9 +127,9 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        await client.GetUpcomingBetsAsync(1);
+        await client.GetUpcomingBetsAsync("tipster1");
         // Token was expired from the first login — second call must re-login.
-        await client.GetUpcomingBetsAsync(2);
+        await client.GetUpcomingBetsAsync("tipster2");
 
         Assert.Equal(2, loginCount);
     }
@@ -146,7 +146,7 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync(1);
+        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync("tipster1");
 
         Assert.True(canSeeBets);
         Assert.Empty(bets);
@@ -168,7 +168,7 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync(1);
+        var (canSeeBets, bets) = await client.GetUpcomingBetsAsync("tipster1");
 
         Assert.False(canSeeBets);
         Assert.Empty(bets);
@@ -187,7 +187,7 @@ public class ExtendedBet2InvestClientTests
 
         var sw = Stopwatch.StartNew();
         var client = CreateClient(handler, DefaultOptions(requestDelayMs: 200));
-        await client.GetUpcomingBetsAsync(1);
+        await client.GetUpcomingBetsAsync("tipster1");
         sw.Stop();
 
         // Two rate-limit delays: login (200ms) + data (200ms) — 10ms tolerance each.
@@ -228,7 +228,7 @@ public class ExtendedBet2InvestClientTests
         var client = CreateClient(handler);
 
         var ex = await Assert.ThrowsAsync<Bet2InvestApiException>(
-            () => client.GetUpcomingBetsAsync(1));
+            () => client.GetUpcomingBetsAsync("tipster1"));
         Assert.Equal(403, ex.HttpStatusCode);
     }
 

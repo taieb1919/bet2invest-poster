@@ -20,7 +20,7 @@ public interface IExtendedBet2InvestClient
     /// user can see that tipster's bets (canSeeBets). Calls GET /v1/statistics/{tipsterId}.
     /// When canSeeBets is false the tipster is pro/restricted; bets will be empty.
     /// </summary>
-    Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(int tipsterId, CancellationToken ct = default);
+    Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(string tipsterId, CancellationToken ct = default);
 
     /// <summary>Publishes a bet order via POST /v1/bet-orders. Returns the order ID if available.</summary>
     Task<string?> PublishBetAsync(BetOrderRequest bet, CancellationToken ct = default);

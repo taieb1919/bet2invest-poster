@@ -24,7 +24,7 @@ public class BetPublisherTests
         public Task LoginAsync(CancellationToken ct = default) => Task.CompletedTask;
 
         public Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(
-            int tipsterId, CancellationToken ct = default)
+            string tipsterId, CancellationToken ct = default)
             => Task.FromResult((true, new List<SettledBet>()));
 
         public Task<string?> PublishBetAsync(BetOrderRequest bet, CancellationToken ct = default)

@@ -1,3 +1,10 @@
 [
-  { "url": "https://bet2invest.com/tipster/123", "name": "ExampleTipster" }
+  { "url": "https://bet2invest.com/tipsters/performance-stats/NG1", "name": "NG1" },
+  { "url": "https://bet2invest.com/tipsters/performance-stats/Edge_Analytics", "name": "Edge Analytics" },
+  { "url": "https://bet2invest.com/tipsters/performance-stats/Mister_Pep", "name": "Mister Pep" },
+  { "url": "https://bet2invest.com/tipsters/performance-stats/JohnDoe", "name": "JohnDoe" },
+  { "url": "https://bet2invest.com/tipsters/performance-stats/Mr_Realist", "name": "Mr Realist" },
+  { "url": "https://bet2invest.com/tipsters/performance-stats/forzanapoli", "name": "forzanapoli" },
+  { "url": "https://bet2invest.com/tipsters/performance-stats/KINGBET09", "name": "KINGBET09" },
+  { "url": "https://bet2invest.com/tipsters/performance-stats/Omalos", "name": "Omalos" }
 ]

@@ -77,9 +77,9 @@ public class TipsterService : ITipsterService
                     continue;
                 }
 
-                if (!tipster.TryExtractId(out _))
+                if (!tipster.TryExtractSlug(out _))
                 {
-                    _logger.LogWarning("Entrée ignorée : ID non extractible depuis {Url}", tipster.Url);
+                    _logger.LogWarning("Entrée ignorée : slug non extractible depuis {Url}", tipster.Url);
                     continue;
                 }
 

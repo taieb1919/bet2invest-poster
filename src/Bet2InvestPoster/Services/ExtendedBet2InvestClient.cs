@@ -153,7 +153,7 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
 
     // ─── Upcoming Bets (GET /v1/statistics/{tipsterId}) ───────────
 
-    public async Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(int tipsterId, CancellationToken ct = default)
+    public async Task<(bool CanSeeBets, List<SettledBet> Bets)> GetUpcomingBetsAsync(string tipsterId, CancellationToken ct = default)
     {
         await EnsureAuthenticatedAsync(ct);
 
