@@ -1,5 +1,6 @@
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Tests.Helpers;
 using Bet2InvestPoster.Workers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,30 +19,14 @@ public class SchedulerWorkerTests
         public bool ShouldThrow { get; set; }
         public TaskCompletionSource CycleExecuted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task RunCycleAsync(CancellationToken ct = default)
+        public Task<Bet2InvestPoster.Models.CycleResult> RunCycleAsync(CancellationToken ct = default)
         {
             RunCount++;
             CycleExecuted.TrySetResult();
             if (ShouldThrow)
                 throw new InvalidOperationException("Simulated cycle failure");
-            return Task.CompletedTask;
+            return Task.FromResult(new Bet2InvestPoster.Models.CycleResult());
         }
-    }
-
-    private class FakeExecutionStateService : IExecutionStateService
-    {
-        public DateTimeOffset? NextRunSet { get; private set; }
-        public int SetNextRunCallCount { get; private set; }
-
-        public ExecutionState GetState() => new(null, null, null, NextRunSet, null);
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt)
-        {
-            NextRunSet = nextRunAt;
-            SetNextRunCallCount++;
-        }
-        public void SetApiConnectionStatus(bool connected) { }
     }
 
     // Pass-through: executes the action once, no retry (for existing tests unrelated to Polly)
@@ -49,19 +34,11 @@ public class SchedulerWorkerTests
     {
         public async Task ExecuteCycleWithRetryAsync(Func<CancellationToken, Task> cycleAction, CancellationToken ct = default)
             => await cycleAction(ct);
-    }
 
-    private class FakeNotificationService : INotificationService
-    {
-        public int FinalFailureCount { get; private set; }
+        public Bet2InvestPoster.Models.CircuitBreakerState GetCircuitBreakerState()
+            => Bet2InvestPoster.Models.CircuitBreakerState.Closed;
 
-        public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default) => Task.CompletedTask;
-        public Task NotifyFailureAsync(string reason, CancellationToken ct = default) => Task.CompletedTask;
-        public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default)
-        {
-            FinalFailureCount++;
-            return Task.CompletedTask;
-        }
+        public TimeSpan? GetCircuitBreakerRemainingDuration() => null;
     }
 
     // ──────────────────────────────── Helpers ────────────────────────────────
@@ -130,6 +107,35 @@ public class SchedulerWorkerTests
 
         var expected = new DateTimeOffset(2026, 2, 26, 8, 0, 0, TimeSpan.Zero);
         Assert.Equal(expected, next);
+    }
+
+    [Fact]
+    public void CalculateNextRun_UsesExecutionStateServiceScheduleTime_Dynamically()
+    {
+        // 07:00 UTC — schedule initially 08:00
+        var now = new DateTimeOffset(2026, 2, 25, 7, 0, 0, TimeSpan.Zero);
+        var fakeTime = new FakeTimeProvider(now);
+        var dynamicState = new FakeExecutionStateService();
+        // Create worker directly with dynamic state for CalculateNextRun
+        var services = new ServiceCollection();
+        services.AddScoped<IPostingCycleService>(_ => new FakePostingCycleService());
+        var sp = services.BuildServiceProvider();
+        var options = Options.Create(new PosterOptions { ScheduleTime = "08:00", MaxRetryCount = 3 });
+        var workerDynamic = new SchedulerWorker(
+            sp, dynamicState,
+            new FakeResiliencePipelineService(),
+            new FakeNotificationService(),
+            options, fakeTime,
+            NullLogger<SchedulerWorker>.Instance);
+
+        // Avec 08:00 initial
+        var next1 = workerDynamic.CalculateNextRun();
+        Assert.Equal(new DateTimeOffset(2026, 2, 25, 8, 0, 0, TimeSpan.Zero), next1);
+
+        // Changer l'heure → 14:30
+        dynamicState.SetScheduleTime("14:30");
+        var next2 = workerDynamic.CalculateNextRun();
+        Assert.Equal(new DateTimeOffset(2026, 2, 25, 14, 30, 0, TimeSpan.Zero), next2);
     }
 
     // ──────────────────────── ExecuteAsync tests ────────────────────────────
@@ -255,6 +261,130 @@ public class SchedulerWorkerTests
         await worker.StopAsync(CancellationToken.None);
 
         // Cycle never ran — cancelled while waiting for 24h delay
+        Assert.Equal(0, fakeCycle.RunCount);
+    }
+
+    // ─── SchedulingEnabled tests ──────────────────────────────────────────────
+
+    private class ControllableExecutionStateService : IExecutionStateService
+    {
+        private volatile bool _schedulingEnabled;
+        public DateTimeOffset? NextRunSet { get; private set; }
+        public int SetNextRunCallCount { get; private set; }
+
+        public ControllableExecutionStateService(bool schedulingEnabled = true)
+            => _schedulingEnabled = schedulingEnabled;
+
+        public ExecutionState GetState() => new(null, null, null, NextRunSet, null);
+        public void RecordSuccess(int publishedCount) { }
+        public void RecordFailure(string reason) { }
+        public void SetNextRun(DateTimeOffset nextRunAt) { NextRunSet = nextRunAt; SetNextRunCallCount++; }
+        public void SetApiConnectionStatus(bool connected) { }
+        public bool GetSchedulingEnabled() => _schedulingEnabled;
+        public void SetSchedulingEnabled(bool enabled) => _schedulingEnabled = enabled;
+        public string[] GetScheduleTimes() => ["08:00"];
+        public void SetScheduleTimes(string[] times) { }
+        public string GetScheduleTime() => "08:00";
+        public void SetScheduleTime(string time) { }
+    }
+
+    /// <summary>
+    /// FakeTimeProvider that signals each time a timer is created (worker reached Task.Delay).
+    /// Eliminates race conditions from Task.Delay(50) in tests.
+    /// </summary>
+    private class CountingFakeTimeProvider(DateTimeOffset startTime) : FakeTimeProvider(startTime)
+    {
+        private int _timerCount;
+        private TaskCompletionSource _nextTimerTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            Interlocked.Increment(ref _timerCount);
+            _nextTimerTcs.TrySetResult();
+            return base.CreateTimer(callback, state, dueTime, period);
+        }
+
+        /// <summary>Wait for the next timer registration (deterministic signal).</summary>
+        public async Task WaitForNextTimerAsync(TimeSpan timeout)
+        {
+            await _nextTimerTcs.Task.WaitAsync(timeout);
+            _nextTimerTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenSchedulingDisabled_DoesNotRunCycle_UntilEnabled()
+    {
+        // Scheduling disabled — worker enters polling loop immediately (before calculating next run)
+        var now = new DateTimeOffset(2026, 2, 25, 7, 59, 0, TimeSpan.Zero);
+        var fakeTime = new CountingFakeTimeProvider(now);
+        var controllableState = new ControllableExecutionStateService(schedulingEnabled: false);
+        var fakeCycle = new FakePostingCycleService();
+
+        var services = new ServiceCollection();
+        services.AddScoped<IPostingCycleService>(_ => fakeCycle);
+        var sp = services.BuildServiceProvider();
+        var options = Options.Create(new PosterOptions { ScheduleTime = "08:00", MaxRetryCount = 3 });
+        var worker = new SchedulerWorker(
+            sp, controllableState,
+            new FakeResiliencePipelineService(),
+            new FakeNotificationService(),
+            options, fakeTime,
+            NullLogger<SchedulerWorker>.Instance);
+
+        using var cts = new CancellationTokenSource();
+        await worker.StartAsync(cts.Token);
+
+        // Wait for worker to enter the polling loop (5s delay — scheduling disabled)
+        await fakeTime.WaitForNextTimerAsync(TimeSpan.FromSeconds(5));
+
+        // Cycle should NOT have run because scheduling is disabled
+        Assert.Equal(0, fakeCycle.RunCount);
+
+        // Enable scheduling and advance past polling delay
+        controllableState.SetSchedulingEnabled(true);
+        fakeTime.Advance(TimeSpan.FromSeconds(5));
+
+        // Wait for the main schedule delay timer (worker exited polling, now waiting for next run)
+        await fakeTime.WaitForNextTimerAsync(TimeSpan.FromSeconds(5));
+
+        // Advance past the schedule time to trigger the cycle
+        fakeTime.Advance(TimeSpan.FromMinutes(1));
+        await fakeCycle.CycleExecuted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await worker.StopAsync(CancellationToken.None);
+
+        Assert.Equal(1, fakeCycle.RunCount);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_WhenSchedulingDisabled_StopsOnCancellation()
+    {
+        var now = new DateTimeOffset(2026, 2, 25, 7, 59, 0, TimeSpan.Zero);
+        var fakeTime = new CountingFakeTimeProvider(now);
+        var controllableState = new ControllableExecutionStateService(schedulingEnabled: false);
+        var fakeCycle = new FakePostingCycleService();
+
+        var services = new ServiceCollection();
+        services.AddScoped<IPostingCycleService>(_ => fakeCycle);
+        var sp = services.BuildServiceProvider();
+        var options = Options.Create(new PosterOptions { ScheduleTime = "08:00", MaxRetryCount = 3 });
+        var worker = new SchedulerWorker(
+            sp, controllableState,
+            new FakeResiliencePipelineService(),
+            new FakeNotificationService(),
+            options, fakeTime,
+            NullLogger<SchedulerWorker>.Instance);
+
+        using var cts = new CancellationTokenSource();
+        await worker.StartAsync(cts.Token);
+
+        // Wait for polling loop timer (scheduling disabled → enters polling immediately)
+        await fakeTime.WaitForNextTimerAsync(TimeSpan.FromSeconds(5));
+
+        await cts.CancelAsync();
+        await worker.StopAsync(CancellationToken.None);
+
         Assert.Equal(0, fakeCycle.RunCount);
     }
 }

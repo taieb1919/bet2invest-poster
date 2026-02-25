@@ -30,6 +30,24 @@ public class HistoryEntry
     [JsonPropertyName("tipsterUrl")]
     public string? TipsterUrl { get; set; }
 
+    // ─── Champs résultat (Story 12.1) — nullable pour rétrocompatibilité ──────
+
+    /// <summary>Résultat du pari : "won", "lost", "pending", null = non vérifié.</summary>
+    [JsonPropertyName("result")]
+    public string? Result { get; set; }
+
+    /// <summary>Cote au moment de la publication.</summary>
+    [JsonPropertyName("odds")]
+    public decimal? Odds { get; set; }
+
+    /// <summary>Nom du sport (ex: "Football", "Tennis").</summary>
+    [JsonPropertyName("sport")]
+    public string? Sport { get; set; }
+
+    /// <summary>Slug/username du tipster source.</summary>
+    [JsonPropertyName("tipsterName")]
+    public string? TipsterName { get; set; }
+
     /// <summary>Unique key for deduplication: matchupId|marketKey|designation.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public string DeduplicationKey => $"{MatchupId}{KeySeparator}{MarketKey}{KeySeparator}{Designation?.ToLowerInvariant()}";

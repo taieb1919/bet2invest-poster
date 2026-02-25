@@ -1,6 +1,7 @@
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram.Commands;
 using Bet2InvestPoster.Telegram.Formatters;
+using Bet2InvestPoster.Tests.Helpers;
 using Microsoft.Extensions.Logging.Abstractions;
 using global::Telegram.Bot.Types;
 
@@ -8,31 +9,13 @@ namespace Bet2InvestPoster.Tests.Telegram.Commands;
 
 public class StatusCommandHandlerTests
 {
-    // --- Fake state service ---
-
-    private class FakeExecutionStateService : IExecutionStateService
-    {
-        private readonly ExecutionState _state;
-
-        public FakeExecutionStateService(ExecutionState? state = null)
-        {
-            _state = state ?? new ExecutionState(null, null, null, null, null);
-        }
-
-        public ExecutionState GetState() => _state;
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt) { }
-        public void SetApiConnectionStatus(bool connected) { }
-    }
-
     private static Message MakeMessage(string text = "/status") =>
         new() { Text = text, Chat = new Chat { Id = 42 } };
 
     private static StatusCommandHandler CreateHandler(ExecutionState? state = null)
     {
         return new StatusCommandHandler(
-            new FakeExecutionStateService(state),
+            new FakeExecutionStateService(fixedState: state),
             new MessageFormatter(),
             NullLogger<StatusCommandHandler>.Instance);
     }

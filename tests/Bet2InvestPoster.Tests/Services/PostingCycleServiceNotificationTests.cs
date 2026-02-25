@@ -1,8 +1,10 @@
+using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
-using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Bet2InvestPoster.Tests.Helpers;
 using static Bet2InvestPoster.Tests.Services.PostingCycleServiceTests;
 
 namespace Bet2InvestPoster.Tests.Services;
@@ -21,6 +23,10 @@ public class PostingCycleServiceNotificationTests
             => Task.FromResult((true, new List<PendingBet>()));
         public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
+        public Task<List<Models.ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
+            => Task.FromResult(new List<Models.ScrapedTipster>());
+        public Task<List<JTDev.Bet2InvestScraper.Models.SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
+            => Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
     }
 
     private sealed class SimpleHistoryManager : IHistoryManager
@@ -31,12 +37,32 @@ public class PostingCycleServiceNotificationTests
             => Task.CompletedTask;
         public Task PurgeOldEntriesAsync(CancellationToken ct = default)
             => Task.CompletedTask;
+
+        public Task<List<Models.HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
+            => Task.FromResult(new List<Models.HistoryEntry>());
+        public Task UpdateEntriesAsync(List<Models.HistoryEntry> updatedEntries, CancellationToken ct = default)
+            => Task.CompletedTask;
+        public Task<List<Models.HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default)
+            => Task.FromResult(new List<Models.HistoryEntry>());
+    }
+
+    private sealed class SimpleResultTracker : IResultTracker
+    {
+        public Task TrackResultsAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class SimpleTipsterService : ITipsterService
     {
         public Task<List<Models.TipsterConfig>> LoadTipstersAsync(CancellationToken ct = default)
             => Task.FromResult(new List<Models.TipsterConfig>());
+
+        public Task<Models.TipsterConfig> AddTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
+
+        public Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
+        public Task ReplaceTipstersAsync(List<Models.TipsterConfig> tipsters, CancellationToken ct = default)
+            => throw new NotImplementedException();
     }
 
     private sealed class SimpleUpcomingBetsFetcher : IUpcomingBetsFetcher
@@ -47,8 +73,8 @@ public class PostingCycleServiceNotificationTests
 
     private sealed class SimpleBetSelector : IBetSelector
     {
-        public Task<List<PendingBet>> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
-            => Task.FromResult(new List<PendingBet>());
+        public Task<SelectionResult> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
+            => Task.FromResult(new SelectionResult { FilteredCount = 0, Selected = [] });
     }
 
     private sealed class ThrowingBetPublisher : IBetPublisher
@@ -57,11 +83,12 @@ public class PostingCycleServiceNotificationTests
         public bool ShouldThrow { get; set; }
         public Exception? ExceptionToThrow { get; set; }
 
-        public Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default)
+        public Task<IReadOnlyList<PendingBet>> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
         {
             if (ShouldThrow)
                 throw ExceptionToThrow ?? new InvalidOperationException("Simulated failure");
-            return Task.FromResult(PublishedCount);
+            var bets = Enumerable.Range(0, PublishedCount).Select(_ => new PendingBet()).ToList();
+            return Task.FromResult<IReadOnlyList<PendingBet>>(bets);
         }
     }
 
@@ -83,6 +110,8 @@ public class PostingCycleServiceNotificationTests
             publisher,
             notification,
             state,
+            new SimpleResultTracker(),
+            Options.Create(new PosterOptions()),
             NullLogger<PostingCycleService>.Instance);
 
         return (service, notification, state, publisher);
@@ -99,7 +128,7 @@ public class PostingCycleServiceNotificationTests
 
         Assert.Equal(1, notification.SuccessCallCount);
         Assert.Equal(0, notification.FailureCallCount);
-        Assert.Equal(7, notification.LastSuccessCount);
+        Assert.Equal(7, notification.LastSuccessResult?.PublishedCount);
     }
 
     [Fact]
@@ -130,6 +159,8 @@ public class PostingCycleServiceNotificationTests
             new ThrowingBetPublisher { PublishedCount = 1 },
             trackingNotification,
             trackingState,
+            new SimpleResultTracker(),
+            Options.Create(new PosterOptions()),
             NullLogger<PostingCycleService>.Instance);
 
         await service.RunCycleAsync();
@@ -191,9 +222,11 @@ public class PostingCycleServiceNotificationTests
         private readonly List<string> _order;
         private readonly string _tag;
         public TrackingNotificationService(List<string> order, string tag) { _order = order; _tag = tag; }
-        public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
+        public Task NotifySuccessAsync(Bet2InvestPoster.Models.CycleResult result, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyFailureAsync(string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
+        public Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
+        public Task SendMessageAsync(string message, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class TrackingExecutionStateService : IExecutionStateService
@@ -206,5 +239,11 @@ public class PostingCycleServiceNotificationTests
         public void RecordFailure(string reason) => _order.Add(_tag);
         public void SetNextRun(DateTimeOffset nextRunAt) { }
         public void SetApiConnectionStatus(bool connected) { }
+        public bool GetSchedulingEnabled() => true;
+        public void SetSchedulingEnabled(bool enabled) { }
+        public string[] GetScheduleTimes() => ["08:00"];
+        public void SetScheduleTimes(string[] times) { }
+        public string GetScheduleTime() => "08:00";
+        public void SetScheduleTime(string time) { }
     }
 }

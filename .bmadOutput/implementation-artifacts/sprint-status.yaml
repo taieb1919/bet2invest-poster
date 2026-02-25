@@ -1,4 +1,4 @@
-# generated: 2026-02-23
+# generated: 2026-02-25
 # project: bet2invest-poster
 # project_key: NOKEY
 # tracking_system: file-system
@@ -33,7 +33,7 @@
 # - SM typically creates next story after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
-generated: 2026-02-23
+generated: 2026-02-25
 project: bet2invest-poster
 project_key: NOKEY
 tracking_system: file-system
@@ -69,9 +69,66 @@ development_status:
   5-2-resilience-polly-retry-du-cycle-complet: done
   epic-5-retrospective: done
 
-  epic-6: in-progress
+  epic-6: done
   6-1-deploiement-vps-et-configuration-systemd: done
   6-2-validation-du-cycle-de-publication-manuel: done
-  6-3-validation-du-scheduling-quotidien-et-de-la-resilience: in-progress
-  6-4-acceptance-finale-et-observation-24h: in-progress
+  6-3-validation-du-scheduling-quotidien-et-de-la-resilience: done
+  6-4-acceptance-finale-et-observation-24h: done
   epic-6-retrospective: optional  # À planifier après clôture epic-6 — apprentissages clés : HistoryManager Singleton, fixs systemd ExecStart, RetryDelayMs validation
+
+  # ============================================
+  # PHASE 2 — Post-MVP
+  # ============================================
+
+  epic-7: done
+  7-1-commandes-start-et-stop-controle-du-scheduling: done
+  7-2-commande-history-historique-des-publications: done
+  7-3-commande-schedule-configuration-horaire-via-telegram: done
+  epic-7-retrospective: done
+
+  epic-8: done
+  8-1-commande-tipsters-consultation-de-la-liste: done
+  8-2-commandes-tipsters-add-et-tipsters-remove-crud-tipsters: done
+  epic-8-retrospective: optional
+
+  epic-9: done
+  9-1-filtrage-par-cotes-et-plage-horaire: done
+  epic-9-retrospective: optional
+
+  epic-10: done
+  10-1-onboarding-guide-via-telegram: done
+  10-2-rotation-des-logs-et-retention-configurable: done
+  10-3-resilience-polly-avancee-et-health-checks: done
+  epic-10-retrospective: optional
+
+  # ============================================
+  # PHASE 3 — Expansion
+  # ============================================
+
+  epic-11: done
+  11-1-commande-tipsters-update-scraping-et-suggestion-automatique: done
+  11-2-selection-multi-criteres-intelligente: done
+  epic-11-retrospective: optional
+
+  epic-12: done
+  12-1-suivi-des-resultats-des-pronostics-publies: done
+  12-2-commande-report-tableau-de-bord-des-performances: done
+  epic-12-retrospective: done
+
+  # ============================================
+  # PHASE 4 — Améliorations
+  # ============================================
+
+  epic-13: in-progress
+  13-1-enrichir-message-succes-statistiques-scraping: done
+  13-2-detail-des-pronostics-publies-dans-le-message: done
+  epic-13-retrospective: optional
+
+  epic-14: in-progress
+  14-1-scheduling-multi-horaires-configurable: done
+  epic-14-retrospective: optional
+
+  epic-15: in-progress
+  15-1-commande-help-liste-des-commandes-disponibles: done
+  15-2-enregistrement-commandes-via-setmycommands: done
+  epic-15-retrospective: optional

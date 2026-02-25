@@ -27,6 +27,18 @@ public class TipsterConfig
     [JsonIgnore]
     public int NumericId { get; set; }
 
+    /// <summary>ROI du tipster (depuis l'API /tipsters). Utilisé pour le scoring intelligent.</summary>
+    [JsonIgnore]
+    public decimal? Roi { get; set; }
+
+    /// <summary>Nombre de paris (proxy du taux de réussite). Utilisé pour le scoring intelligent.</summary>
+    [JsonIgnore]
+    public int? BetsNumber { get; set; }
+
+    /// <summary>Sport le plus parié par le tipster. Utilisé pour le scoring intelligent.</summary>
+    [JsonIgnore]
+    public string? MostBetSport { get; set; }
+
     /// <summary>
     /// Attempts to extract the tipster slug from the URL.
     /// Sets <see cref="Id"/> and returns it via <paramref name="slug"/> on success.

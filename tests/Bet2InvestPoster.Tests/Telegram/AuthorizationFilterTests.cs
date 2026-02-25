@@ -1,4 +1,5 @@
 using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram;
 using Bet2InvestPoster.Telegram.Commands;
 using Bet2InvestPoster.Tests.Telegram.Commands;
@@ -80,6 +81,8 @@ public class AuthorizationFilterTests
         });
         services.AddSingleton<AuthorizationFilter>();
         services.AddSingleton<ITelegramBotClient>(_ => new FakeTelegramBotClient());
+        services.AddSingleton<IOnboardingService, FakeOnboardingService>();
+        services.AddSingleton<IConversationStateService, ConversationStateService>();
         services.AddHostedService<TelegramBotService>();
         services.AddLogging();
 
@@ -87,5 +90,10 @@ public class AuthorizationFilterTests
         var hosted = sp.GetRequiredService<IHostedService>();
 
         Assert.IsType<TelegramBotService>(hosted);
+    }
+
+    private class FakeOnboardingService : IOnboardingService
+    {
+        public Task TrySendOnboardingAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 }

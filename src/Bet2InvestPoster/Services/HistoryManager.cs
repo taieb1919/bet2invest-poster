@@ -109,6 +109,65 @@ public class HistoryManager : IHistoryManager
         }
     }
 
+    public async Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
+    {
+        await _semaphore.WaitAsync(ct);
+        try
+        {
+            var entries = await LoadEntriesAsync(ct);
+            return entries
+                .OrderByDescending(e => e.PublishedAt)
+                .Take(count)
+                .ToList();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task UpdateEntriesAsync(List<HistoryEntry> updatedEntries, CancellationToken ct = default)
+    {
+        if (updatedEntries.Count == 0)
+            return;
+
+        await _semaphore.WaitAsync(ct);
+        try
+        {
+            var entries = await LoadEntriesAsync(ct);
+            var updateMap = updatedEntries.ToDictionary(e => e.BetId);
+
+            for (var i = 0; i < entries.Count; i++)
+            {
+                if (updateMap.TryGetValue(entries[i].BetId, out var updated))
+                    entries[i] = updated;
+            }
+
+            await SaveAtomicAsync(entries, ct);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task<List<HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default)
+    {
+        await _semaphore.WaitAsync(ct);
+        try
+        {
+            var entries = await LoadEntriesAsync(ct);
+            return entries
+                .Where(e => e.PublishedAt >= since)
+                .OrderByDescending(e => e.PublishedAt)
+                .ToList();
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
     private async Task<List<HistoryEntry>> LoadEntriesAsync(CancellationToken ct)
     {
         if (!File.Exists(_historyPath))

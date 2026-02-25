@@ -1,4 +1,7 @@
+using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Models;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Serilog.Context;
 
 namespace Bet2InvestPoster.Services;
@@ -13,6 +16,8 @@ public class PostingCycleService : IPostingCycleService
     private readonly IBetPublisher _betPublisher;
     private readonly INotificationService _notificationService;
     private readonly IExecutionStateService _executionStateService;
+    private readonly IResultTracker _resultTracker;
+    private readonly PosterOptions _options;
     private readonly ILogger<PostingCycleService> _logger;
 
     public PostingCycleService(
@@ -24,6 +29,8 @@ public class PostingCycleService : IPostingCycleService
         IBetPublisher betPublisher,
         INotificationService notificationService,
         IExecutionStateService executionStateService,
+        IResultTracker resultTracker,
+        IOptions<PosterOptions> posterOptions,
         ILogger<PostingCycleService> logger)
     {
         _client               = client;
@@ -34,10 +41,12 @@ public class PostingCycleService : IPostingCycleService
         _betPublisher         = betPublisher;
         _notificationService  = notificationService;
         _executionStateService = executionStateService;
+        _resultTracker        = resultTracker;
+        _options              = posterOptions.Value;
         _logger               = logger;
     }
 
-    public async Task RunCycleAsync(CancellationToken ct = default)
+    public async Task<CycleResult> RunCycleAsync(CancellationToken ct = default)
     {
         using (LogContext.PushProperty("Step", "Cycle"))
         {
@@ -47,6 +56,9 @@ public class PostingCycleService : IPostingCycleService
             {
                 // 1. Purge des entrées > 30 jours (Step="Purge" géré dans HistoryManager)
                 await _historyManager.PurgeOldEntriesAsync(ct);
+
+                // 1b. Vérification des résultats des pronostics publiés (Step="Report")
+                await _resultTracker.TrackResultsAsync(ct);
 
                 // 2. Lecture des tipsters (Step="Scrape" géré dans TipsterService)
                 var tipsters = await _tipsterService.LoadTipstersAsync(ct);
@@ -58,27 +70,51 @@ public class PostingCycleService : IPostingCycleService
                 // 3. Récupération des paris à venir (Step="Scrape" géré dans UpcomingBetsFetcher)
                 var candidates = await _upcomingBetsFetcher.FetchAllAsync(tipsters, ct);
 
-                // 4. Sélection aléatoire (Step="Select" géré dans BetSelector)
-                var selected = await _betSelector.SelectAsync(candidates, ct);
+                // 4. Sélection aléatoire avec filtrage avancé (Step="Select" géré dans BetSelector)
+                var selectionResult = await _betSelector.SelectAsync(candidates, ct);
+
+                // AC#4 : détecter zéro candidats après filtrage avancé
+                // candidates.Count > 0 évite de blâmer les filtres si la cause est l'absence de bets ou la déduplication
+                if (selectionResult.Selected.Count == 0 && candidates.Count > 0 && HasActiveFilters())
+                {
+                    var filterDetails = BuildFilterDetails();
+                    _logger.LogWarning(
+                        "Aucun pronostic ne correspond aux critères de filtrage — {FilterDetails}", filterDetails);
+                    await _notificationService.NotifyNoFilteredCandidatesAsync(filterDetails, ct);
+                    return new CycleResult
+                    {
+                        ScrapedCount      = candidates.Count,
+                        FilteredCount     = selectionResult.FilteredCount,
+                        FiltersWereActive = true
+                    };
+                }
 
                 // 5. Publication et enregistrement (Step="Publish" géré dans BetPublisher)
-                var published = await _betPublisher.PublishAllAsync(selected, ct);
+                var publishedBets = await _betPublisher.PublishAllAsync(selectionResult.Selected, ct);
+
+                var filtersActive = HasActiveFilters();
+                var cycleResult = new CycleResult
+                {
+                    ScrapedCount      = candidates.Count,
+                    FilteredCount     = selectionResult.FilteredCount,
+                    FiltersWereActive = filtersActive,
+                    PublishedBets     = publishedBets
+                };
 
                 _logger.LogInformation(
-                    "Cycle terminé — {Published} pronostics publiés sur {Candidates} candidats",
-                    published, candidates.Count);
+                    "Cycle terminé — {Published} pronostics publiés sur {Filtered} filtrés sur {Scraped} scrapés",
+                    publishedBets.Count, selectionResult.FilteredCount, candidates.Count);
 
                 // 6. Mise à jour état + notification succès (Story 4.3)
-                _executionStateService.RecordSuccess(published);
-                await _notificationService.NotifySuccessAsync(published, ct);
+                _executionStateService.RecordSuccess(publishedBets.Count);
+                await _notificationService.NotifySuccessAsync(cycleResult, ct);
+
+                return cycleResult;
             }
             catch (Exception ex)
             {
-                using (LogContext.PushProperty("Step", "Cycle"))
-                {
-                    _logger.LogError(ex, "Cycle échoué — {ExceptionType}: {Message}",
-                        ex.GetType().Name, ex.Message);
-                }
+                _logger.LogError(ex, "Cycle échoué — {ExceptionType}: {Message}",
+                    ex.GetType().Name, ex.Message);
 
                 // Sanitize : utiliser le type d'exception, jamais ex.Message (peut contenir des credentials)
                 var sanitizedReason = ex.GetType().Name;
@@ -90,5 +126,23 @@ public class PostingCycleService : IPostingCycleService
                 throw; // Re-throw pour que Polly (Epic 5) puisse retenter
             }
         }
+    }
+
+    private bool HasActiveFilters()
+        => _options.MinOdds.HasValue || _options.MaxOdds.HasValue || _options.EventHorizonHours.HasValue;
+
+    private string BuildFilterDetails()
+    {
+        var parts = new List<string>();
+        if (_options.MinOdds.HasValue && _options.MaxOdds.HasValue)
+            parts.Add($"cotes: {_options.MinOdds.Value:F2}-{_options.MaxOdds.Value:F2}");
+        else if (_options.MinOdds.HasValue)
+            parts.Add($"cotes min: {_options.MinOdds.Value:F2}");
+        else if (_options.MaxOdds.HasValue)
+            parts.Add($"cotes max: {_options.MaxOdds.Value:F2}");
+        if (_options.EventHorizonHours.HasValue)
+            parts.Add($"horizon: {_options.EventHorizonHours.Value}h");
+
+        return parts.Count > 0 ? string.Join(", ", parts) : "aucun filtre";
     }
 }

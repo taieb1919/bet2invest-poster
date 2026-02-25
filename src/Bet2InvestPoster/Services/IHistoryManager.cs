@@ -21,4 +21,23 @@ public interface IHistoryManager
     /// Logs purged count with Step="Purge". No-op if file does not exist.
     /// </summary>
     Task PurgeOldEntriesAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns the <paramref name="count"/> most recent history entries sorted by PublishedAt descending.
+    /// Returns an empty list if the file does not exist.
+    /// </summary>
+    Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default);
+
+    /// <summary>
+    /// Met à jour les entrées existantes dans history.json avec les valeurs fournies (match par BetId).
+    /// Les entrées non présentes dans <paramref name="updatedEntries"/> sont conservées sans modification.
+    /// Écriture atomique (write-to-temp + rename).
+    /// </summary>
+    Task UpdateEntriesAsync(List<HistoryEntry> updatedEntries, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retourne toutes les entrées publiées depuis <paramref name="since"/>, ordonnées par date décroissante.
+    /// Retourne une liste vide si le fichier n'existe pas.
+    /// </summary>
+    Task<List<HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default);
 }

@@ -10,13 +10,18 @@ using Serilog;
 using Serilog.Events;
 using Telegram.Bot;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 // UseSystemd integration for VPS deployment
 builder.Services.AddSystemd();
 
 // Read log path early from configuration before Serilog setup
 var logPath = builder.Configuration.GetValue<string>("Poster:LogPath") ?? "logs";
+// Read log retention early (same pattern as LogPath — needed before Serilog setup)
+var logRetentionDays = builder.Configuration.GetValue<int?>("Poster:LogRetentionDays") ?? 30;
+if (logRetentionDays <= 0)
+    throw new InvalidOperationException(
+        $"Poster:LogRetentionDays doit être > 0 (valeur actuelle : {logRetentionDays})");
 
 // Console: clean human-readable output without JSON property blob
 const string consoleTemplate =
@@ -35,6 +40,7 @@ builder.Services.AddSerilog(lc => lc
     .WriteTo.File(
         path: Path.Combine(logPath, "bet2invest-poster-.log"),
         rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: logRetentionDays,
         outputTemplate: fileTemplate));
 
 // Register Options — env vars automatically override appsettings.json via Generic Host
@@ -78,6 +84,9 @@ builder.Services.AddScoped<IBetSelector, BetSelector>();
 // BetPublisher: Scoped — publishes selected bets via API and records them in history.
 builder.Services.AddScoped<IBetPublisher, BetPublisher>();
 
+// ResultTracker: Scoped — vérifie les résultats des pronostics publiés une fois par cycle.
+builder.Services.AddScoped<IResultTracker, ResultTracker>();
+
 // PostingCycleService: Scoped — orchestrates the full posting cycle per execution.
 builder.Services.AddScoped<IPostingCycleService, PostingCycleService>();
 
@@ -97,26 +106,56 @@ builder.Services.AddSingleton<ITelegramBotClient>(sp =>
 // NotificationService: Singleton — sole service authorized to send outgoing Telegram messages.
 builder.Services.AddSingleton<INotificationService, NotificationService>();
 
-// ExecutionStateService: Singleton — tracks last/next run state for /status command.
-builder.Services.AddSingleton<IExecutionStateService, ExecutionStateService>();
+// ExecutionStateService: Singleton — tracks last/next run state et scheduling enabled/disabled.
+// DataPath injecté pour la persistance de l'état de scheduling (scheduling-state.json).
+builder.Services.AddSingleton<IExecutionStateService>(sp =>
+{
+    var opts = sp.GetRequiredService<IOptions<PosterOptions>>().Value;
+    var logger = sp.GetRequiredService<ILogger<ExecutionStateService>>();
+    return new ExecutionStateService(opts.DataPath, opts.ScheduleTime, logger, opts.GetEffectiveScheduleTimes());
+});
 
 // MessageFormatter: Singleton — formats Telegram status messages.
 builder.Services.AddSingleton<IMessageFormatter, MessageFormatter>();
 
-// Command handlers: Singleton — /run and /status dispatch.
+// ConversationStateService: Singleton — état de conversation partagé entre tous les scopes.
+builder.Services.AddSingleton<IConversationStateService, ConversationStateService>();
+
+// OnboardingService: Singleton — sends onboarding message on first launch.
+builder.Services.AddSingleton<IOnboardingService, OnboardingService>();
+
+// Command handlers: Singleton — dispatch des commandes Telegram.
 builder.Services.AddSingleton<ICommandHandler, RunCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, StatusCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, StartCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, StopCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, HistoryCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, ScheduleCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, TipstersCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, ReportCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, HelpCommandHandler>();
 
 // TelegramBotService: HostedService — bot long polling running in background.
 builder.Services.AddHostedService<TelegramBotService>();
 
-var host = builder.Build();
+// Health checks — NFR15
+builder.Services.AddHealthChecks()
+    .AddCheck<Bet2InvestHealthCheck>("bet2invest");
+
+// Kestrel: écoute uniquement sur le port health check (pas le port HTTP standard)
+var healthCheckPort = builder.Configuration.GetValue<int?>("Poster:HealthCheckPort") ?? 8080;
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenLocalhost(healthCheckPort);
+});
+
+var app = builder.Build();
 
 // Fast-fail: validate required credentials before starting
 // Credentials must be provided via environment variables, never in appsettings.json
-var b2iOpts = host.Services.GetRequiredService<IOptions<Bet2InvestOptions>>().Value;
-var tgOpts = host.Services.GetRequiredService<IOptions<TelegramOptions>>().Value;
-var posterOpts = host.Services.GetRequiredService<IOptions<PosterOptions>>().Value;
+var b2iOpts = app.Services.GetRequiredService<IOptions<Bet2InvestOptions>>().Value;
+var tgOpts = app.Services.GetRequiredService<IOptions<TelegramOptions>>().Value;
+var posterOpts = app.Services.GetRequiredService<IOptions<PosterOptions>>().Value;
 var missingVars = new List<string>();
 if (string.IsNullOrWhiteSpace(b2iOpts.Identifier)) missingVars.Add("Bet2Invest__Identifier");
 if (string.IsNullOrWhiteSpace(b2iOpts.Password)) missingVars.Add("Bet2Invest__Password");
@@ -132,6 +171,26 @@ if (!int.TryParse(posterOpts.BankrollId, out _))
     throw new InvalidOperationException(
         $"Poster:BankrollId doit être un entier valide (valeur actuelle : '{posterOpts.BankrollId}')");
 
+// Validation des filtres avancés — log warnings si configuration incohérente
+if (posterOpts.MinOdds.HasValue && posterOpts.MinOdds.Value <= 0)
+    Log.Warning("Configuration: Poster:MinOdds ({MinOdds}) est <= 0 — aucun pari ne sera sélectionné", posterOpts.MinOdds);
+if (posterOpts.MaxOdds.HasValue && posterOpts.MaxOdds.Value <= 0)
+    Log.Warning("Configuration: Poster:MaxOdds ({MaxOdds}) est <= 0 — aucun pari ne sera sélectionné", posterOpts.MaxOdds);
+if (posterOpts.MinOdds.HasValue && posterOpts.MaxOdds.HasValue && posterOpts.MinOdds > posterOpts.MaxOdds)
+    Log.Warning("Configuration: Poster:MinOdds ({MinOdds}) > Poster:MaxOdds ({MaxOdds}) — aucun pari ne correspondra aux filtres", posterOpts.MinOdds, posterOpts.MaxOdds);
+if (posterOpts.EventHorizonHours.HasValue && posterOpts.EventHorizonHours.Value <= 0)
+    Log.Warning("Configuration: Poster:EventHorizonHours ({EventHorizonHours}) est <= 0 — tous les paris seront exclus", posterOpts.EventHorizonHours);
+
+// Validation des ScheduleTimes — fast-fail si un horaire configur\u00e9 est invalide
+var effectiveTimes = posterOpts.GetEffectiveScheduleTimes();
+var invalidTimes = effectiveTimes
+    .Where(t => !TimeOnly.TryParseExact(t, "HH:mm", System.Globalization.CultureInfo.InvariantCulture,
+        System.Globalization.DateTimeStyles.None, out _))
+    .ToList();
+if (invalidTimes.Count > 0)
+    throw new InvalidOperationException(
+        $"Poster:ScheduleTimes contient des horaires invalides (format attendu HH:mm) : {string.Join(", ", invalidTimes)}");
+
 // NFR8 : délai minimum 500ms entre requêtes API (rate limiting)
 if (b2iOpts.RequestDelayMs < 500)
     throw new InvalidOperationException(
@@ -142,4 +201,16 @@ if (posterOpts.RetryDelayMs < 1000)
     throw new InvalidOperationException(
         $"Poster:RetryDelayMs doit être >= 1000ms (valeur actuelle : {posterOpts.RetryDelayMs}ms)");
 
-host.Run();
+if (posterOpts.CircuitBreakerFailureThreshold <= 0)
+    throw new InvalidOperationException(
+        $"Poster:CircuitBreakerFailureThreshold doit être > 0 (valeur actuelle : {posterOpts.CircuitBreakerFailureThreshold})");
+if (posterOpts.CircuitBreakerDurationSeconds <= 0)
+    throw new InvalidOperationException(
+        $"Poster:CircuitBreakerDurationSeconds doit être > 0 (valeur actuelle : {posterOpts.CircuitBreakerDurationSeconds})");
+if (posterOpts.HealthCheckPort is < 1 or > 65535)
+    throw new InvalidOperationException(
+        $"Poster:HealthCheckPort doit être entre 1 et 65535 (valeur actuelle : {posterOpts.HealthCheckPort})");
+
+app.MapHealthChecks("/health");
+
+app.Run();

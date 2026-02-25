@@ -443,6 +443,119 @@ public class ExtendedBet2InvestClientTests
         Assert.IsType<ExtendedBet2InvestClient>(client);
     }
 
+    // ─── GetFreeTipstersAsync Tests (Story 11.1, Task 7.1) ──────────
+
+    private static HttpResponseMessage TipstersPageResponse(
+        IEnumerable<object> tipsters, int? nextPage = null)
+    {
+        var tipstersJson = string.Join(",", tipsters.Select(t => System.Text.Json.JsonSerializer.Serialize(t)));
+        var paginationJson = nextPage.HasValue
+            ? $@",""pagination"":{{""nextPage"":{nextPage}}}"
+            : @",""pagination"":{}";
+        var json = $@"{{""tipsters"":[{tipstersJson}]{paginationJson}}}";
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(json, Encoding.UTF8, "application/json")
+        };
+    }
+
+    [Fact]
+    public async Task GetFreeTipstersAsync_FiltersFreeOnly_ReturnsFreeOrdered()
+    {
+        // Arrange: 2 pro, 2 free — seuls les free doivent être retournés, triés par ROI descendant
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
+            return TipstersPageResponse(new object[]
+            {
+                new { id = 1, username = "proTipster", pro = true, generalStatistics = new { roi = 20.0, betsNumber = 100, mostBetSport = "Football" } },
+                new { id = 2, username = "freeLow", pro = false, generalStatistics = new { roi = 5.0, betsNumber = 50, mostBetSport = "Tennis" } },
+                new { id = 3, username = "freeHigh", pro = false, generalStatistics = new { roi = 15.0, betsNumber = 80, mostBetSport = "Basketball" } },
+                new { id = 4, username = "proTipster2", pro = true, generalStatistics = new { roi = 30.0, betsNumber = 200, mostBetSport = "Football" } },
+            });
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.GetFreeTipstersAsync();
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal("freeHigh", result[0].Username); // ROI 15 > ROI 5
+        Assert.Equal("freeLow", result[1].Username);
+        Assert.Equal(15.0m, result[0].Roi);
+        Assert.Equal("Basketball", result[0].MostBetSport);
+        Assert.Equal(80, result[0].BetsNumber);
+    }
+
+    [Fact]
+    public async Task GetFreeTipstersAsync_PaginationStops_WhenNoNextPage()
+    {
+        var callCount = 0;
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
+            callCount++;
+            return TipstersPageResponse(new object[]
+            {
+                new { id = 1, username = "freeA", pro = false, generalStatistics = new { roi = 10.0, betsNumber = 10, mostBetSport = "Football" } }
+            }); // pas de nextPage → arrêt après page 0
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.GetFreeTipstersAsync();
+
+        Assert.Equal(1, callCount); // Une seule requête tipsters (après login)
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task GetFreeTipstersAsync_EmptyPage_ReturnsEmptyList()
+    {
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
+            return TipstersPageResponse(Array.Empty<object>());
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.GetFreeTipstersAsync();
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetFreeTipstersAsync_NoFreeOnPage_ReturnsEmpty()
+    {
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
+            return TipstersPageResponse(new object[]
+            {
+                new { id = 1, username = "onlyPro", pro = true, generalStatistics = new { roi = 25.0, betsNumber = 300, mostBetSport = "Football" } }
+            });
+        });
+
+        var client = CreateClient(handler);
+        var result = await client.GetFreeTipstersAsync();
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetFreeTipstersAsync_HttpError_ThrowsBet2InvestApiException()
+    {
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri!.PathAndQuery.StartsWith("/auth")) return LoginSuccess();
+            return new HttpResponseMessage(System.Net.HttpStatusCode.InternalServerError)
+            {
+                Content = new StringContent("Internal Server Error", Encoding.UTF8, "text/plain")
+            };
+        });
+
+        var client = CreateClient(handler);
+        await Assert.ThrowsAsync<Bet2InvestApiException>(() => client.GetFreeTipstersAsync());
+    }
+
     // ─── Fake helpers ───────────────────────────────────────────────
 
     private class FakeHttpMessageHandler : HttpMessageHandler

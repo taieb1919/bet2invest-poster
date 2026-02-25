@@ -1,7 +1,7 @@
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
-using Bet2InvestPoster.Models;
+using Bet2InvestPoster.Tests.Helpers;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -27,6 +27,10 @@ public class PostingCycleServiceTests
             => Task.FromResult((true, new List<PendingBet>()));
         public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
+        public Task<List<ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
+            => Task.FromResult(new List<ScrapedTipster>());
+        public Task<List<JTDev.Bet2InvestScraper.Models.SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
+            => Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
     }
 
     private sealed class FakeHistoryManager : IHistoryManager
@@ -46,6 +50,23 @@ public class PostingCycleServiceTests
             _callOrder?.Add("Purge");
             return Task.CompletedTask;
         }
+
+        public Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
+            => Task.FromResult(new List<HistoryEntry>());
+        public Task UpdateEntriesAsync(List<HistoryEntry> updatedEntries, CancellationToken ct = default)
+            => Task.CompletedTask;
+        public Task<List<HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default)
+            => Task.FromResult(new List<HistoryEntry>());
+    }
+
+    private sealed class FakeResultTracker : IResultTracker
+    {
+        public int CallCount { get; private set; }
+        public Task TrackResultsAsync(CancellationToken ct = default)
+        {
+            CallCount++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeTipsterService : ITipsterService
@@ -62,6 +83,14 @@ public class PostingCycleServiceTests
             _callOrder?.Add("LoadTipsters");
             return Task.FromResult(TipstersToReturn);
         }
+
+        public Task<TipsterConfig> AddTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
+
+        public Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
+        public Task ReplaceTipstersAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
+            => throw new NotImplementedException();
     }
 
     private sealed class FakeUpcomingBetsFetcher : IUpcomingBetsFetcher
@@ -85,14 +114,20 @@ public class PostingCycleServiceTests
         private readonly List<string>? _callOrder;
         public int CallCount { get; private set; }
         public List<PendingBet> SelectionToReturn { get; set; } = [];
+        /// <summary>
+        /// Nombre de candidats après filtres (avant tirage aléatoire). Par défaut = SelectionToReturn.Count.
+        /// Permet de simuler le cas réaliste FilteredCount > Selected.Count.
+        /// </summary>
+        public int? FilteredCountToReturn { get; set; }
 
         public FakeBetSelector(List<string>? callOrder = null) => _callOrder = callOrder;
 
-        public Task<List<PendingBet>> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
+        public Task<SelectionResult> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
         {
             CallCount++;
             _callOrder?.Add("Select");
-            return Task.FromResult(SelectionToReturn);
+            var filteredCount = FilteredCountToReturn ?? SelectionToReturn.Count;
+            return Task.FromResult(new SelectionResult { FilteredCount = filteredCount, Selected = SelectionToReturn });
         }
     }
 
@@ -100,58 +135,17 @@ public class PostingCycleServiceTests
     {
         private readonly List<string>? _callOrder;
         public int CallCount { get; private set; }
-        public List<PendingBet> LastSelected { get; private set; } = [];
+        public IReadOnlyList<PendingBet> LastSelected { get; private set; } = [];
 
         public FakeBetPublisher(List<string>? callOrder = null) => _callOrder = callOrder;
 
-        public Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default)
+        public Task<IReadOnlyList<PendingBet>> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
         {
             CallCount++;
             LastSelected = selected;
             _callOrder?.Add("PublishAll");
-            return Task.FromResult(selected.Count);
+            return Task.FromResult<IReadOnlyList<PendingBet>>(selected.ToList());
         }
-    }
-
-    // ─── Fakes (notification + state) ────────────────────────────────────────
-
-    internal sealed class FakeNotificationService : INotificationService
-    {
-        public int SuccessCallCount { get; private set; }
-        public int FailureCallCount { get; private set; }
-        public int? LastSuccessCount { get; private set; }
-        public string? LastFailureReason { get; private set; }
-
-        public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default)
-        {
-            SuccessCallCount++;
-            LastSuccessCount = publishedCount;
-            return Task.CompletedTask;
-        }
-
-        public Task NotifyFailureAsync(string reason, CancellationToken ct = default)
-        {
-            FailureCallCount++;
-            LastFailureReason = reason;
-            return Task.CompletedTask;
-        }
-
-        public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default)
-            => Task.CompletedTask;
-    }
-
-    internal sealed class FakeExecutionStateService : IExecutionStateService
-    {
-        public int? LastSuccessCount { get; private set; }
-        public string? LastFailureReason { get; private set; }
-        public bool RecordSuccessCalled { get; private set; }
-        public bool RecordFailureCalled { get; private set; }
-
-        public ExecutionState GetState() => new(null, null, null, null, null);
-        public void RecordSuccess(int publishedCount) { RecordSuccessCalled = true; LastSuccessCount = publishedCount; }
-        public void RecordFailure(string reason) { RecordFailureCalled = true; LastFailureReason = reason; }
-        public void SetNextRun(DateTimeOffset nextRunAt) { }
-        public void SetApiConnectionStatus(bool connected) { }
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────
@@ -163,16 +157,20 @@ public class PostingCycleServiceTests
         FakeBetSelector?         selector     = null,
         FakeBetPublisher?        publisher    = null,
         FakeNotificationService? notification = null,
-        FakeExecutionStateService? state      = null)
+        FakeExecutionStateService? state      = null,
+        FakeResultTracker?       resultTracker = null,
+        PosterOptions?           options      = null)
         => new PostingCycleService(
             new FakeExtendedClient(),
-            history      ?? new FakeHistoryManager(),
-            tipsters     ?? new FakeTipsterService(),
-            fetcher      ?? new FakeUpcomingBetsFetcher(),
-            selector     ?? new FakeBetSelector(),
-            publisher    ?? new FakeBetPublisher(),
-            notification ?? new FakeNotificationService(),
-            state        ?? new FakeExecutionStateService(),
+            history       ?? new FakeHistoryManager(),
+            tipsters      ?? new FakeTipsterService(),
+            fetcher       ?? new FakeUpcomingBetsFetcher(),
+            selector      ?? new FakeBetSelector(),
+            publisher     ?? new FakeBetPublisher(),
+            notification  ?? new FakeNotificationService(),
+            state         ?? new FakeExecutionStateService(),
+            resultTracker ?? new FakeResultTracker(),
+            Options.Create(options ?? new PosterOptions()),
             NullLogger<PostingCycleService>.Instance);
 
     // ─── Tests ────────────────────────────────────────────────────────────────
@@ -214,6 +212,17 @@ public class PostingCycleServiceTests
     }
 
     [Fact]
+    public async Task RunCycleAsync_CallsResultTrackerAfterPurge()
+    {
+        var resultTracker = new FakeResultTracker();
+        var service = CreateService(resultTracker: resultTracker);
+
+        await service.RunCycleAsync();
+
+        Assert.Equal(1, resultTracker.CallCount);
+    }
+
+    [Fact]
     public async Task RunCycleAsync_PassesSelectedBetsToPublisher()
     {
         var selectedBets = new List<PendingBet>
@@ -230,6 +239,109 @@ public class PostingCycleServiceTests
         Assert.Equal(2, publisher.LastSelected.Count);
         Assert.Contains(publisher.LastSelected, b => b.Id == 10);
         Assert.Contains(publisher.LastSelected, b => b.Id == 20);
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_WhenZeroCandidatesWithActiveFilters_NotifiesAndReturns()
+    {
+        // Arrange : BetSelector retourne liste vide + filtre actif (MinOdds configuré)
+        var selector     = new FakeBetSelector { SelectionToReturn = [] };
+        var fetcher      = new FakeUpcomingBetsFetcher { BetsToReturn = [new PendingBet { Id = 1 }] };
+        var publisher    = new FakeBetPublisher();
+        var notification = new FakeNotificationService();
+        var state        = new FakeExecutionStateService();
+        var options      = new PosterOptions { MinOdds = 5.00m };
+
+        var service = CreateService(
+            selector: selector,
+            fetcher: fetcher,
+            publisher: publisher,
+            notification: notification,
+            state: state,
+            options: options);
+
+        // Act
+        await service.RunCycleAsync();
+
+        // Assert : notification "aucun candidat filtré" envoyée
+        Assert.Equal(1, notification.NoFilteredCandidatesCallCount);
+        Assert.NotNull(notification.LastFilterDetails);
+        Assert.Contains("5", notification.LastFilterDetails); // contient la valeur MinOdds
+
+        // Assert : PublishAllAsync NON appelé
+        Assert.Equal(0, publisher.CallCount);
+
+        // Assert : RecordSuccess NON appelé (cycle s'est arrêté avant)
+        Assert.False(state.RecordSuccessCalled);
+    }
+
+    /// <summary>H2 — Vérifie que CycleResult retourne les bons compteurs ScrapedCount, FilteredCount, PublishedCount.</summary>
+    [Fact]
+    public async Task RunCycleAsync_ReturnsCycleResult_WithCorrectCounts()
+    {
+        // Arrange : fetcher retourne 40 bets, selector filtre à 30, sélectionne 10, publisher publie 10
+        var scrapedBets = Enumerable.Range(1, 40).Select(i => new PendingBet { Id = i }).ToList();
+        var selectedBets = Enumerable.Range(1, 10).Select(i => new PendingBet { Id = i }).ToList();
+
+        var fetcher  = new FakeUpcomingBetsFetcher { BetsToReturn = scrapedBets };
+        var selector = new FakeBetSelector { SelectionToReturn = selectedBets, FilteredCountToReturn = 30 };
+        var publisher = new FakeBetPublisher();
+        var service  = CreateService(fetcher: fetcher, selector: selector, publisher: publisher);
+
+        // Act
+        var result = await service.RunCycleAsync();
+
+        // Assert
+        Assert.Equal(40, result.ScrapedCount);
+        Assert.Equal(30, result.FilteredCount);
+        Assert.Equal(10, result.PublishedCount);
+        Assert.Equal(10, result.PublishedBets.Count);
+    }
+
+    /// <summary>Task 5.4 — Vérifie que PublishedBets est propagé dans CycleResult.</summary>
+    [Fact]
+    public async Task RunCycleAsync_ReturnsCycleResult_WithPublishedBets()
+    {
+        var selectedBets = new List<PendingBet>
+        {
+            new PendingBet { Id = 1 },
+            new PendingBet { Id = 2 },
+            new PendingBet { Id = 3 }
+        };
+        var fetcher  = new FakeUpcomingBetsFetcher { BetsToReturn = selectedBets };
+        var selector = new FakeBetSelector { SelectionToReturn = selectedBets };
+        var publisher = new FakeBetPublisher();
+        var service  = CreateService(fetcher: fetcher, selector: selector, publisher: publisher);
+
+        var result = await service.RunCycleAsync();
+
+        Assert.Equal(3, result.PublishedBets.Count);
+        Assert.Contains(result.PublishedBets, b => b.Id == 1);
+        Assert.Contains(result.PublishedBets, b => b.Id == 2);
+        Assert.Contains(result.PublishedBets, b => b.Id == 3);
+    }
+
+    /// <summary>H3 — Vérifie que FilteredCountToReturn != Selected.Count est bien propagé dans CycleResult.</summary>
+    [Fact]
+    public async Task RunCycleAsync_FilteredCountDiffersFromSelected_ReflectedInCycleResult()
+    {
+        // Arrange : 20 candidats scrapés, 15 filtrés, 5 sélectionnés et publiés
+        var scrapedBets  = Enumerable.Range(1, 20).Select(i => new PendingBet { Id = i }).ToList();
+        var selectedBets = Enumerable.Range(1, 5).Select(i => new PendingBet { Id = i }).ToList();
+
+        var fetcher  = new FakeUpcomingBetsFetcher { BetsToReturn = scrapedBets };
+        var selector = new FakeBetSelector { SelectionToReturn = selectedBets, FilteredCountToReturn = 15 };
+        var publisher = new FakeBetPublisher();
+        var service  = CreateService(fetcher: fetcher, selector: selector, publisher: publisher);
+
+        // Act
+        var result = await service.RunCycleAsync();
+
+        // Assert : FilteredCount reflète le vrai compteur "après filtres" (pas Selected.Count)
+        Assert.Equal(20, result.ScrapedCount);
+        Assert.Equal(15, result.FilteredCount);
+        Assert.Equal(5, result.PublishedCount);
+        Assert.NotEqual(result.FilteredCount, result.PublishedCount);
     }
 
     [Fact]
@@ -253,11 +365,13 @@ public class PostingCycleServiceTests
         services.AddScoped<IExtendedBet2InvestClient, ExtendedBet2InvestClient>();
         services.AddScoped<IHistoryManager, HistoryManager>();
         services.AddScoped<ITipsterService, TipsterService>();
+        services.AddSingleton(TimeProvider.System);
         services.AddScoped<IUpcomingBetsFetcher, UpcomingBetsFetcher>();
         services.AddScoped<IBetSelector, BetSelector>();
         services.AddScoped<IBetPublisher, BetPublisher>();
         services.AddSingleton<INotificationService>(_ => new FakeNotificationService());
         services.AddSingleton<IExecutionStateService, ExecutionStateService>();
+        services.AddScoped<IResultTracker, ResultTracker>();
         services.AddScoped<IPostingCycleService, PostingCycleService>();
 
         using var provider = services.BuildServiceProvider();

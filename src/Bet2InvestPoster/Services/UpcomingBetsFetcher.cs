@@ -59,6 +59,16 @@ public class UpcomingBetsFetcher : IUpcomingBetsFetcher
                         _logger.LogInformation(
                             "{Count} paris à venir pour tipster {Name} (id={Id})",
                             bets.Count, tipster.Name, tipster.Id);
+
+                        // Enrichir chaque pari avec les métadonnées du tipster source (scoring intelligent story 11.2)
+                        foreach (var bet in bets)
+                        {
+                            bet.TipsterUsername = tipster.Name;
+                            bet.TipsterRoi = tipster.Roi;
+                            bet.TipsterWinRate = tipster.BetsNumber.HasValue ? (decimal)tipster.BetsNumber.Value : null;
+                            bet.TipsterSport = tipster.MostBetSport;
+                        }
+
                         allBets.AddRange(bets);
                     }
                 }

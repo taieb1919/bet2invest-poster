@@ -133,32 +133,31 @@ public class HistoryManagerTests : IDisposable
     }
 
     [Fact]
-    public void HistoryManager_RegisteredAsScoped()
+    public void HistoryManager_RegisteredAsSingleton()
     {
         var services = new ServiceCollection();
         services.Configure<PosterOptions>(o => o.DataPath = _tempDir);
         services.AddLogging();
-        services.AddScoped<IHistoryManager, HistoryManager>();
+        services.AddSingleton<IHistoryManager, HistoryManager>();
 
         using var provider = services.BuildServiceProvider();
-        using var scope = provider.CreateScope();
-        var manager = scope.ServiceProvider.GetRequiredService<IHistoryManager>();
+        var manager = provider.GetRequiredService<IHistoryManager>();
 
         Assert.NotNull(manager);
         Assert.IsType<HistoryManager>(manager);
     }
 
     [Fact]
-    public void HistoryManager_DiDescriptor_HasScopedLifetimeAndCorrectImplementation()
+    public void HistoryManager_DiDescriptor_HasSingletonLifetimeAndCorrectImplementation()
     {
         var services = new ServiceCollection();
         services.Configure<PosterOptions>(o => o.DataPath = _tempDir);
         services.AddLogging();
-        services.AddScoped<IHistoryManager, HistoryManager>();
+        services.AddSingleton<IHistoryManager, HistoryManager>();
 
         var descriptor = services.Single(d => d.ServiceType == typeof(IHistoryManager));
 
-        Assert.Equal(ServiceLifetime.Scoped, descriptor.Lifetime);
+        Assert.Equal(ServiceLifetime.Singleton, descriptor.Lifetime);
         Assert.Equal(typeof(HistoryManager), descriptor.ImplementationType);
     }
 
@@ -172,6 +171,58 @@ public class HistoryManagerTests : IDisposable
 
         var keys = await manager.LoadPublishedKeysAsync();
         Assert.Single(keys);
+    }
+
+    [Fact]
+    public async Task GetRecentEntriesAsync_WithMoreThanCount_ReturnsCountMostRecent()
+    {
+        var manager = CreateManager();
+        for (int i = 0; i < 10; i++)
+        {
+            await manager.RecordAsync(MakeEntry(i, matchupId: i.ToString(), publishedAt: DateTime.UtcNow.AddHours(-i)));
+        }
+
+        var result = await manager.GetRecentEntriesAsync(7);
+
+        Assert.Equal(7, result.Count);
+    }
+
+    [Fact]
+    public async Task GetRecentEntriesAsync_WhenEmpty_ReturnsEmptyList()
+    {
+        var manager = CreateManager();
+
+        var result = await manager.GetRecentEntriesAsync(7);
+
+        Assert.NotNull(result);
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetRecentEntriesAsync_WithLessThanCount_ReturnsAllEntries()
+    {
+        var manager = CreateManager();
+        await manager.RecordAsync(MakeEntry(1, matchupId: "1", publishedAt: DateTime.UtcNow));
+        await manager.RecordAsync(MakeEntry(2, matchupId: "2", publishedAt: DateTime.UtcNow.AddHours(-1)));
+
+        var result = await manager.GetRecentEntriesAsync(7);
+
+        Assert.Equal(2, result.Count);
+    }
+
+    [Fact]
+    public async Task GetRecentEntriesAsync_ReturnsSortedByPublishedAtDescending()
+    {
+        var manager = CreateManager();
+        var oldest = DateTime.UtcNow.AddHours(-5);
+        var newest = DateTime.UtcNow;
+        await manager.RecordAsync(MakeEntry(1, matchupId: "1", publishedAt: oldest));
+        await manager.RecordAsync(MakeEntry(2, matchupId: "2", publishedAt: newest));
+
+        var result = await manager.GetRecentEntriesAsync(7);
+
+        Assert.Equal(2, result[0].BetId); // newest first
+        Assert.Equal(1, result[1].BetId);
     }
 
     [Fact]
