@@ -2,7 +2,6 @@ using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Exceptions;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
-using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -40,6 +39,8 @@ public class BetPublisherTests
             if (ShouldFail) throw new PublishException(0, 500, "Simulated failure");
             return Task.FromResult<string?>("order-id-123");
         }
+        public Task<List<Models.ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
+            => Task.FromResult(new List<Models.ScrapedTipster>());
     }
 
     private sealed class FakeHistoryManager : IHistoryManager

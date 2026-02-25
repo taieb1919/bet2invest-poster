@@ -2,7 +2,6 @@ using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Exceptions;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
-using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -190,6 +189,31 @@ public class UpcomingBetsFetcherTests
         Assert.Equal(2, fake.CallCount);
     }
 
+    // ─── Story 11.2 : propagation des stats tipster vers PendingBets ──────
+
+    [Fact]
+    public async Task FetchAllAsync_EnrichesBetsWithTipsterStats_FromTipsterConfig()
+    {
+        // Issue #4 : vérifier que TipsterRoi, TipsterWinRate, TipsterSport, TipsterUsername
+        // sont correctement propagés depuis la config du tipster vers les PendingBets
+        var fake = new FakeExtendedBet2InvestClient();
+        fake.Setup(801, canSeeBets: true, bets: [MakeBet(42)]);
+
+        var tipster = MakeTipster("cristiano", name: "Cristiano", numericId: 801);
+        tipster.Roi = 0.15m;
+        tipster.BetsNumber = 42;
+        tipster.MostBetSport = "Football";
+
+        var result = await CreateFetcher(fake).FetchAllAsync([tipster]);
+
+        Assert.Single(result);
+        var resultBet = result[0];
+        Assert.Equal(0.15m, resultBet.TipsterRoi);
+        Assert.Equal(42m, resultBet.TipsterWinRate);   // BetsNumber converti en decimal
+        Assert.Equal("Football", resultBet.TipsterSport);
+        Assert.Equal("Cristiano", resultBet.TipsterUsername); // Name, pas le slug
+    }
+
     // ─── Stub ──────────────────────────────────────────────────────
 
     private class FakeExtendedBet2InvestClient : IExtendedBet2InvestClient
@@ -238,5 +262,7 @@ public class UpcomingBetsFetcherTests
 
         public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
+        public Task<List<Models.ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
+            => Task.FromResult(new List<Models.ScrapedTipster>());
     }
 }

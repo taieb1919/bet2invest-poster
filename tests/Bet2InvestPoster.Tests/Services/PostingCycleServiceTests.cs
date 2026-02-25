@@ -27,6 +27,8 @@ public class PostingCycleServiceTests
             => Task.FromResult((true, new List<PendingBet>()));
         public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
+        public Task<List<ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
+            => Task.FromResult(new List<ScrapedTipster>());
     }
 
     private sealed class FakeHistoryManager : IHistoryManager
@@ -70,6 +72,8 @@ public class PostingCycleServiceTests
             => throw new NotImplementedException();
 
         public Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
+        public Task ReplaceTipstersAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
             => throw new NotImplementedException();
     }
 
@@ -277,6 +281,7 @@ public class PostingCycleServiceTests
         services.AddScoped<IExtendedBet2InvestClient, ExtendedBet2InvestClient>();
         services.AddScoped<IHistoryManager, HistoryManager>();
         services.AddScoped<ITipsterService, TipsterService>();
+        services.AddSingleton(TimeProvider.System);
         services.AddScoped<IUpcomingBetsFetcher, UpcomingBetsFetcher>();
         services.AddScoped<IBetSelector, BetSelector>();
         services.AddScoped<IBetPublisher, BetPublisher>();
