@@ -5,6 +5,18 @@ public class PosterOptions
     public const string SectionName = "Poster";
 
     public string ScheduleTime { get; set; } = "08:00";
+    public string[]? ScheduleTimes { get; set; }
+
+    private static readonly string[] DefaultScheduleTimes = ["08:00", "13:00", "19:00"];
+
+    public string[] GetEffectiveScheduleTimes()
+    {
+        if (ScheduleTimes is { Length: > 0 })
+            return ScheduleTimes;
+        if (!string.IsNullOrWhiteSpace(ScheduleTime))
+            return [ScheduleTime];
+        return DefaultScheduleTimes;
+    }
     public int RetryDelayMs { get; set; } = 60000;
     public int MaxRetryCount { get; set; } = 3;
     public string DataPath { get; set; } = ".";

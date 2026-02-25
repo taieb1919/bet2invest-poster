@@ -8,29 +8,32 @@ public class ExecutionStateService : IExecutionStateService
     private readonly object _lock = new();
     private ExecutionState _state;
     private readonly string? _schedulingStateFile;
-    private readonly string _defaultScheduleTime;
+    private readonly string[] _defaultScheduleTimes;
     private readonly ILogger<ExecutionStateService> _logger;
 
     public ExecutionStateService(
         string? dataPath = null,
         string defaultScheduleTime = "08:00",
-        ILogger<ExecutionStateService>? logger = null)
+        ILogger<ExecutionStateService>? logger = null,
+        string[]? defaultScheduleTimes = null)
     {
-        _defaultScheduleTime = defaultScheduleTime;
+        _defaultScheduleTimes = defaultScheduleTimes is { Length: > 0 }
+            ? defaultScheduleTimes
+            : [defaultScheduleTime];
         _logger = logger ?? NullLogger<ExecutionStateService>.Instance;
 
         _schedulingStateFile = dataPath is not null
             ? Path.Combine(dataPath, "scheduling-state.json")
             : null;
 
-        var (schedulingEnabled, scheduleTime) = LoadSchedulingState();
-        _state = new ExecutionState(null, null, null, null, null, schedulingEnabled, scheduleTime);
+        var (schedulingEnabled, scheduleTimes) = LoadSchedulingState();
+        _state = new ExecutionState(null, null, null, null, null, schedulingEnabled, scheduleTimes);
     }
 
-    private (bool enabled, string scheduleTime) LoadSchedulingState()
+    private (bool enabled, string[] scheduleTimes) LoadSchedulingState()
     {
         if (_schedulingStateFile is null || !File.Exists(_schedulingStateFile))
-            return (true, _defaultScheduleTime);
+            return (true, _defaultScheduleTimes);
 
         try
         {
@@ -41,21 +44,38 @@ public class ExecutionStateService : IExecutionStateService
             if (doc.RootElement.TryGetProperty("schedulingEnabled", out var enabledProp))
                 enabled = enabledProp.GetBoolean();
 
-            var scheduleTime = _defaultScheduleTime;
-            if (doc.RootElement.TryGetProperty("scheduleTime", out var timeProp))
-                scheduleTime = timeProp.GetString() ?? _defaultScheduleTime;
+            // Nouveau format : array "scheduleTimes"
+            if (doc.RootElement.TryGetProperty("scheduleTimes", out var timesProp)
+                && timesProp.ValueKind == JsonValueKind.Array)
+            {
+                var times = timesProp.EnumerateArray()
+                    .Select(e => e.GetString())
+                    .Where(s => s is not null)
+                    .Select(s => s!)
+                    .ToArray();
+                if (times.Length > 0)
+                    return (enabled, times);
+            }
 
-            return (enabled, scheduleTime);
+            // Fallback rétrocompatibilité : string "scheduleTime"
+            if (doc.RootElement.TryGetProperty("scheduleTime", out var timeProp))
+            {
+                var t = timeProp.GetString();
+                if (!string.IsNullOrWhiteSpace(t))
+                    return (enabled, [t]);
+            }
+
+            return (enabled, _defaultScheduleTimes);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Impossible de lire scheduling-state.json — valeurs par défaut utilisées");
         }
 
-        return (true, _defaultScheduleTime);
+        return (true, _defaultScheduleTimes);
     }
 
-    private void PersistSchedulingState(bool enabled, string scheduleTime)
+    private void PersistSchedulingState(bool enabled, string[] scheduleTimes)
     {
         if (_schedulingStateFile is null) return;
 
@@ -66,7 +86,7 @@ public class ExecutionStateService : IExecutionStateService
                 Directory.CreateDirectory(dir);
 
             var tmpFile = _schedulingStateFile + ".tmp";
-            var json = JsonSerializer.Serialize(new { schedulingEnabled = enabled, scheduleTime });
+            var json = JsonSerializer.Serialize(new { schedulingEnabled = enabled, scheduleTimes });
             File.WriteAllText(tmpFile, json);
             File.Move(tmpFile, _schedulingStateFile, overwrite: true);
         }
@@ -130,15 +150,32 @@ public class ExecutionStateService : IExecutionStateService
 
     public void SetSchedulingEnabled(bool enabled)
     {
-        string scheduleTime;
+        string[] times;
         lock (_lock)
         {
             _state = _state with { SchedulingEnabled = enabled };
-            scheduleTime = _state.ScheduleTime;
+            times = _state.ScheduleTimes;
         }
-        PersistSchedulingState(enabled, scheduleTime);
+        PersistSchedulingState(enabled, times);
     }
 
+    public string[] GetScheduleTimes()
+    {
+        lock (_lock) return _state.ScheduleTimes;
+    }
+
+    public void SetScheduleTimes(string[] times)
+    {
+        bool enabled;
+        lock (_lock)
+        {
+            _state = _state with { ScheduleTimes = times };
+            enabled = _state.SchedulingEnabled;
+        }
+        PersistSchedulingState(enabled, times);
+    }
+
+    // Rétrocompatibilité
     public string GetScheduleTime()
     {
         lock (_lock) return _state.ScheduleTime;
@@ -146,12 +183,6 @@ public class ExecutionStateService : IExecutionStateService
 
     public void SetScheduleTime(string time)
     {
-        bool enabled;
-        lock (_lock)
-        {
-            _state = _state with { ScheduleTime = time };
-            enabled = _state.SchedulingEnabled;
-        }
-        PersistSchedulingState(enabled, time);
+        SetScheduleTimes([time]);
     }
 }

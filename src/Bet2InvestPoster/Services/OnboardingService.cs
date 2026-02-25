@@ -75,8 +75,8 @@ public class OnboardingService : IOnboardingService
                     }
                 }
 
-                var scheduleTime = _executionStateService.GetScheduleTime();
-                var message = _messageFormatter.FormatOnboardingMessage(apiConnected, tipsterCount, scheduleTime);
+                var scheduleTimes = _executionStateService.GetScheduleTimes();
+                var message = _messageFormatter.FormatOnboardingMessage(apiConnected, tipsterCount, scheduleTimes);
 
                 await _notificationService.SendMessageAsync(message, ct);
                 _logger.LogInformation("Message d'onboarding envoyé avec succès");

@@ -1,5 +1,6 @@
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Tests.Helpers;
 using Microsoft.Extensions.Logging.Abstractions;
 using global::Telegram.Bot.Types;
 
@@ -7,28 +8,6 @@ namespace Bet2InvestPoster.Tests.Telegram.Commands;
 
 public class ScheduleCommandHandlerTests
 {
-    private class FakeExecutionStateService : IExecutionStateService
-    {
-        private string _scheduleTime = "08:00";
-        private bool _schedulingEnabled = true;
-        private DateTimeOffset? _nextRunAt;
-
-        public string LastSetTime => _scheduleTime;
-        public DateTimeOffset? LastSetNextRun => _nextRunAt;
-
-        public ExecutionState GetState() =>
-            new(null, null, null, _nextRunAt, null, _schedulingEnabled, _scheduleTime);
-
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt) => _nextRunAt = nextRunAt;
-        public void SetApiConnectionStatus(bool connected) { }
-        public bool GetSchedulingEnabled() => _schedulingEnabled;
-        public void SetSchedulingEnabled(bool enabled) => _schedulingEnabled = enabled;
-        public string GetScheduleTime() => _scheduleTime;
-        public void SetScheduleTime(string time) => _scheduleTime = time;
-    }
-
     private static Message MakeMessage(string text) =>
         new() { Text = text, Chat = new Chat { Id = 42 } };
 
@@ -76,7 +55,7 @@ public class ScheduleCommandHandlerTests
 
         await handler.HandleAsync(bot, MakeMessage("/schedule 10:30"), CancellationToken.None);
 
-        Assert.Equal("10:30", stateService.LastSetTime);
+        Assert.Equal("10:30", stateService.GetScheduleTime());
         Assert.Single(bot.SentMessages);
         Assert.Contains("10:30", bot.SentMessages[0]);
         Assert.Contains("Prochain run", bot.SentMessages[0]);
@@ -91,7 +70,7 @@ public class ScheduleCommandHandlerTests
 
         await handler.HandleAsync(bot, MakeMessage("/schedule 10:30"), CancellationToken.None);
 
-        Assert.Null(stateService.LastSetNextRun);
+        Assert.Null(stateService.NextRunSet);
     }
 
     [Fact]
@@ -104,7 +83,7 @@ public class ScheduleCommandHandlerTests
 
         Assert.Single(bot.SentMessages);
         Assert.Contains("invalide", bot.SentMessages[0]);
-        Assert.Equal("08:00", stateService.LastSetTime); // non modifié
+        Assert.Equal("08:00", stateService.GetScheduleTime()); // non modifié
     }
 
     [Fact]
@@ -127,7 +106,7 @@ public class ScheduleCommandHandlerTests
 
         await handler.HandleAsync(bot, MakeMessage("/schedule 00:00"), CancellationToken.None);
 
-        Assert.Equal("00:00", stateService.LastSetTime);
+        Assert.Equal("00:00", stateService.GetScheduleTime());
         Assert.Single(bot.SentMessages);
         Assert.DoesNotContain("invalide", bot.SentMessages[0]);
     }
@@ -140,7 +119,7 @@ public class ScheduleCommandHandlerTests
 
         await handler.HandleAsync(bot, MakeMessage("/schedule 23:59"), CancellationToken.None);
 
-        Assert.Equal("23:59", stateService.LastSetTime);
+        Assert.Equal("23:59", stateService.GetScheduleTime());
     }
 
     [Fact]

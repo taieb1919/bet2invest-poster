@@ -19,51 +19,14 @@ public class SchedulerWorkerTests
         public bool ShouldThrow { get; set; }
         public TaskCompletionSource CycleExecuted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task RunCycleAsync(CancellationToken ct = default)
+        public Task<Bet2InvestPoster.Models.CycleResult> RunCycleAsync(CancellationToken ct = default)
         {
             RunCount++;
             CycleExecuted.TrySetResult();
             if (ShouldThrow)
                 throw new InvalidOperationException("Simulated cycle failure");
-            return Task.CompletedTask;
+            return Task.FromResult(new Bet2InvestPoster.Models.CycleResult());
         }
-    }
-
-    private class FakeExecutionStateService : IExecutionStateService
-    {
-        public DateTimeOffset? NextRunSet { get; private set; }
-        public int SetNextRunCallCount { get; private set; }
-
-        public ExecutionState GetState() => new(null, null, null, NextRunSet, null);
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt)
-        {
-            NextRunSet = nextRunAt;
-            SetNextRunCallCount++;
-        }
-        public void SetApiConnectionStatus(bool connected) { }
-        public bool GetSchedulingEnabled() => true;
-        public void SetSchedulingEnabled(bool enabled) { }
-        public string GetScheduleTime() => "08:00";
-        public void SetScheduleTime(string time) { }
-    }
-
-    private class DynamicScheduleExecutionStateService : IExecutionStateService
-    {
-        private string _scheduleTime = "08:00";
-        public DateTimeOffset? NextRunSet { get; private set; }
-        public int SetNextRunCallCount { get; private set; }
-
-        public ExecutionState GetState() => new(null, null, null, NextRunSet, null);
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt) { NextRunSet = nextRunAt; SetNextRunCallCount++; }
-        public void SetApiConnectionStatus(bool connected) { }
-        public bool GetSchedulingEnabled() => true;
-        public void SetSchedulingEnabled(bool enabled) { }
-        public string GetScheduleTime() => _scheduleTime;
-        public void SetScheduleTime(string time) => _scheduleTime = time;
     }
 
     // Pass-through: executes the action once, no retry (for existing tests unrelated to Polly)
@@ -152,9 +115,7 @@ public class SchedulerWorkerTests
         // 07:00 UTC — schedule initially 08:00
         var now = new DateTimeOffset(2026, 2, 25, 7, 0, 0, TimeSpan.Zero);
         var fakeTime = new FakeTimeProvider(now);
-        var dynamicState = new DynamicScheduleExecutionStateService();
-        var (worker, _) = CreateWorker(fakeTime, new FakeExecutionStateService(), new FakePostingCycleService());
-
+        var dynamicState = new FakeExecutionStateService();
         // Create worker directly with dynamic state for CalculateNextRun
         var services = new ServiceCollection();
         services.AddScoped<IPostingCycleService>(_ => new FakePostingCycleService());
@@ -321,6 +282,8 @@ public class SchedulerWorkerTests
         public void SetApiConnectionStatus(bool connected) { }
         public bool GetSchedulingEnabled() => _schedulingEnabled;
         public void SetSchedulingEnabled(bool enabled) => _schedulingEnabled = enabled;
+        public string[] GetScheduleTimes() => ["08:00"];
+        public void SetScheduleTimes(string[] times) { }
         public string GetScheduleTime() => "08:00";
         public void SetScheduleTime(string time) { }
     }

@@ -124,8 +124,8 @@ development_status:
   13-2-detail-des-pronostics-publies-dans-le-message: done
   epic-13-retrospective: optional
 
-  epic-14: backlog
-  14-1-scheduling-multi-horaires-configurable: backlog
+  epic-14: in-progress
+  14-1-scheduling-multi-horaires-configurable: done
   epic-14-retrospective: optional
 
   epic-15: backlog

@@ -139,33 +139,13 @@ public class PostingCycleServiceTests
 
         public FakeBetPublisher(List<string>? callOrder = null) => _callOrder = callOrder;
 
-        public Task<int> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
+        public Task<IReadOnlyList<PendingBet>> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
         {
             CallCount++;
             LastSelected = selected;
             _callOrder?.Add("PublishAll");
-            return Task.FromResult(selected.Count);
+            return Task.FromResult<IReadOnlyList<PendingBet>>(selected.ToList());
         }
-    }
-
-    // ─── Fakes (notification + state) ────────────────────────────────────────
-
-    internal sealed class FakeExecutionStateService : IExecutionStateService
-    {
-        public int? LastSuccessCount { get; private set; }
-        public string? LastFailureReason { get; private set; }
-        public bool RecordSuccessCalled { get; private set; }
-        public bool RecordFailureCalled { get; private set; }
-
-        public ExecutionState GetState() => new(null, null, null, null, null);
-        public void RecordSuccess(int publishedCount) { RecordSuccessCalled = true; LastSuccessCount = publishedCount; }
-        public void RecordFailure(string reason) { RecordFailureCalled = true; LastFailureReason = reason; }
-        public void SetNextRun(DateTimeOffset nextRunAt) { }
-        public void SetApiConnectionStatus(bool connected) { }
-        public bool GetSchedulingEnabled() => true;
-        public void SetSchedulingEnabled(bool enabled) { }
-        public string GetScheduleTime() => "08:00";
-        public void SetScheduleTime(string time) { }
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────
@@ -315,6 +295,30 @@ public class PostingCycleServiceTests
         Assert.Equal(40, result.ScrapedCount);
         Assert.Equal(30, result.FilteredCount);
         Assert.Equal(10, result.PublishedCount);
+        Assert.Equal(10, result.PublishedBets.Count);
+    }
+
+    /// <summary>Task 5.4 — Vérifie que PublishedBets est propagé dans CycleResult.</summary>
+    [Fact]
+    public async Task RunCycleAsync_ReturnsCycleResult_WithPublishedBets()
+    {
+        var selectedBets = new List<PendingBet>
+        {
+            new PendingBet { Id = 1 },
+            new PendingBet { Id = 2 },
+            new PendingBet { Id = 3 }
+        };
+        var fetcher  = new FakeUpcomingBetsFetcher { BetsToReturn = selectedBets };
+        var selector = new FakeBetSelector { SelectionToReturn = selectedBets };
+        var publisher = new FakeBetPublisher();
+        var service  = CreateService(fetcher: fetcher, selector: selector, publisher: publisher);
+
+        var result = await service.RunCycleAsync();
+
+        Assert.Equal(3, result.PublishedBets.Count);
+        Assert.Contains(result.PublishedBets, b => b.Id == 1);
+        Assert.Contains(result.PublishedBets, b => b.Id == 2);
+        Assert.Contains(result.PublishedBets, b => b.Id == 3);
     }
 
     /// <summary>H3 — Vérifie que FilteredCountToReturn != Selected.Count est bien propagé dans CycleResult.</summary>

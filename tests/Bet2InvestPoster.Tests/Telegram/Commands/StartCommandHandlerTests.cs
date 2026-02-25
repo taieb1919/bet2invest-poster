@@ -1,5 +1,6 @@
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Tests.Helpers;
 using Microsoft.Extensions.Logging.Abstractions;
 using global::Telegram.Bot.Types;
 
@@ -7,38 +8,6 @@ namespace Bet2InvestPoster.Tests.Telegram.Commands;
 
 public class StartCommandHandlerTests
 {
-    // ─── Fake ────────────────────────────────────────────────────────────────
-
-    private class FakeExecutionStateService : IExecutionStateService
-    {
-        private bool _schedulingEnabled;
-        private readonly DateTimeOffset? _nextRunAt;
-
-        public FakeExecutionStateService(bool schedulingEnabled = true, DateTimeOffset? nextRunAt = null)
-        {
-            _schedulingEnabled = schedulingEnabled;
-            _nextRunAt = nextRunAt;
-        }
-
-        public bool SetSchedulingEnabledCalled { get; private set; }
-        public bool? LastSetValue { get; private set; }
-
-        public ExecutionState GetState() => new(null, null, null, _nextRunAt, null);
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt) { }
-        public void SetApiConnectionStatus(bool connected) { }
-        public bool GetSchedulingEnabled() => _schedulingEnabled;
-        public void SetSchedulingEnabled(bool enabled)
-        {
-            _schedulingEnabled = enabled;
-            SetSchedulingEnabledCalled = true;
-            LastSetValue = enabled;
-        }
-        public string GetScheduleTime() => "08:00";
-        public void SetScheduleTime(string time) { }
-    }
-
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private static Message MakeMessage(string text = "/start") =>
@@ -47,7 +16,8 @@ public class StartCommandHandlerTests
     private static (StartCommandHandler handler, FakeTelegramBotClient bot, FakeExecutionStateService state)
         CreateHandler(bool schedulingEnabled = true, DateTimeOffset? nextRunAt = null)
     {
-        var state = new FakeExecutionStateService(schedulingEnabled, nextRunAt);
+        var fixedState = nextRunAt.HasValue ? new ExecutionState(null, null, null, nextRunAt, null) : null;
+        var state = new FakeExecutionStateService(schedulingEnabled: schedulingEnabled, fixedState: fixedState);
         var handler = new StartCommandHandler(state, NullLogger<StartCommandHandler>.Instance);
         var bot = new FakeTelegramBotClient();
         return (handler, bot, state);
@@ -90,7 +60,7 @@ public class StartCommandHandlerTests
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
         Assert.True(state.SetSchedulingEnabledCalled);
-        Assert.True(state.LastSetValue);
+        Assert.True(state.LastSetSchedulingEnabledValue);
         Assert.Single(bot.SentMessages);
         Assert.Contains("▶️", bot.SentMessages[0]);
         Assert.Contains("activé", bot.SentMessages[0]);

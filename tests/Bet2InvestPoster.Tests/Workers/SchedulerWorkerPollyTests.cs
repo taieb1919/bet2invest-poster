@@ -24,28 +24,15 @@ public class SchedulerWorkerPollyTests
         public TaskCompletionSource FirstCallExecuted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource SuccessExecuted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public Task RunCycleAsync(CancellationToken ct = default)
+        public Task<Bet2InvestPoster.Models.CycleResult> RunCycleAsync(CancellationToken ct = default)
         {
             CallCount++;
             FirstCallExecuted.TrySetResult();
             if (CallCount <= FailCount)
                 throw new InvalidOperationException($"Simulated failure #{CallCount}");
             SuccessExecuted.TrySetResult();
-            return Task.CompletedTask;
+            return Task.FromResult(new Bet2InvestPoster.Models.CycleResult());
         }
-    }
-
-    private class FakeExecutionStateService : IExecutionStateService
-    {
-        public ExecutionState GetState() => new(null, null, null, null, null);
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt) { }
-        public void SetApiConnectionStatus(bool connected) { }
-        public bool GetSchedulingEnabled() => true;
-        public void SetSchedulingEnabled(bool enabled) { }
-        public string GetScheduleTime() => "08:00";
-        public void SetScheduleTime(string time) { }
     }
 
     // ──────────────────────────────── SignalingFakeTimeProvider ────────────────────────────────

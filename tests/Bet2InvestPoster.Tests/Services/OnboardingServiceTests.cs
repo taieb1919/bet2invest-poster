@@ -33,38 +33,18 @@ public class OnboardingServiceTests
             Task.FromResult(new List<HistoryEntry>());
     }
 
-    private class FakeExecutionStateService : IExecutionStateService
-    {
-        private string _scheduleTime = "08:00";
-
-        public FakeExecutionStateService(string scheduleTime = "08:00")
-        {
-            _scheduleTime = scheduleTime;
-        }
-
-        public ExecutionState GetState() => new(null, null, null, null, null);
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt) { }
-        public void SetApiConnectionStatus(bool connected) { }
-        public bool GetSchedulingEnabled() => true;
-        public void SetSchedulingEnabled(bool enabled) { }
-        public string GetScheduleTime() => _scheduleTime;
-        public void SetScheduleTime(string time) { _scheduleTime = time; }
-    }
-
     private class FakeMessageFormatter : IMessageFormatter
     {
         public string LastApiConnected { get; private set; } = "";
         public int LastTipsterCount { get; private set; }
-        public string LastScheduleTime { get; private set; } = "";
+        public string[] LastScheduleTimes { get; private set; } = [];
 
-        public string FormatOnboardingMessage(bool apiConnected, int tipsterCount, string scheduleTime)
+        public string FormatOnboardingMessage(bool apiConnected, int tipsterCount, string[] scheduleTimes)
         {
             LastApiConnected = apiConnected ? "connected" : "disconnected";
             LastTipsterCount = tipsterCount;
-            LastScheduleTime = scheduleTime;
-            return $"ONBOARDING|api={apiConnected}|tipsters={tipsterCount}|schedule={scheduleTime}";
+            LastScheduleTimes = scheduleTimes;
+            return $"ONBOARDING|api={apiConnected}|tipsters={tipsterCount}|schedule={string.Join(",", scheduleTimes)}";
         }
 
         public string FormatStatus(ExecutionState state) => "";
@@ -73,6 +53,7 @@ public class OnboardingServiceTests
         public string FormatScrapedTipsters(List<ScrapedTipster> tipsters) => "";
         public string FormatScrapedTipstersConfirmation() => "";
         public string FormatReport(List<HistoryEntry> entries, int days) => "";
+        public string FormatCycleSuccess(Bet2InvestPoster.Models.CycleResult result) => "";
     }
 
     private class FakeTipsterService : ITipsterService
@@ -234,7 +215,7 @@ public class OnboardingServiceTests
     public async Task TrySendOnboardingAsync_IncludeScheduleTime_DansLeMessage()
     {
         var formatter = new FakeMessageFormatter();
-        var executionState = new FakeExecutionStateService("10:30");
+        var executionState = new FakeExecutionStateService(scheduleTimes: ["10:30"]);
 
         var svc = CreateService(
             historyManager: new FakeHistoryManager(keys: []),
@@ -243,7 +224,7 @@ public class OnboardingServiceTests
 
         await svc.TrySendOnboardingAsync();
 
-        Assert.Equal("10:30", formatter.LastScheduleTime);
+        Assert.Contains("10:30", formatter.LastScheduleTimes);
     }
 
     [Fact]
@@ -266,7 +247,7 @@ public class OnboardingServiceTests
 
     private class ThrowingNotificationService : INotificationService
     {
-        public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifySuccessAsync(Bet2InvestPoster.Models.CycleResult result, CancellationToken ct = default) => Task.CompletedTask;
         public Task NotifyFailureAsync(string reason, CancellationToken ct = default) => Task.CompletedTask;
         public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default) => Task.CompletedTask;
         public Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default) => Task.CompletedTask;

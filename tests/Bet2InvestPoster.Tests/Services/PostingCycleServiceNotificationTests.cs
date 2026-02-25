@@ -83,11 +83,12 @@ public class PostingCycleServiceNotificationTests
         public bool ShouldThrow { get; set; }
         public Exception? ExceptionToThrow { get; set; }
 
-        public Task<int> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
+        public Task<IReadOnlyList<PendingBet>> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
         {
             if (ShouldThrow)
                 throw ExceptionToThrow ?? new InvalidOperationException("Simulated failure");
-            return Task.FromResult(PublishedCount);
+            var bets = Enumerable.Range(0, PublishedCount).Select(_ => new PendingBet()).ToList();
+            return Task.FromResult<IReadOnlyList<PendingBet>>(bets);
         }
     }
 
@@ -240,6 +241,8 @@ public class PostingCycleServiceNotificationTests
         public void SetApiConnectionStatus(bool connected) { }
         public bool GetSchedulingEnabled() => true;
         public void SetSchedulingEnabled(bool enabled) { }
+        public string[] GetScheduleTimes() => ["08:00"];
+        public void SetScheduleTimes(string[] times) { }
         public string GetScheduleTime() => "08:00";
         public void SetScheduleTime(string time) { }
     }

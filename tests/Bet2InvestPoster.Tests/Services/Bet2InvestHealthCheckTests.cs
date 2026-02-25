@@ -1,5 +1,6 @@
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Tests.Helpers;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -8,26 +9,6 @@ namespace Bet2InvestPoster.Tests.Services;
 public class Bet2InvestHealthCheckTests
 {
     // ─── Fakes ──────────────────────────────────────────────────────────
-
-    private class FakeExecutionStateService : IExecutionStateService
-    {
-        private ExecutionState _state;
-
-        public FakeExecutionStateService(ExecutionState? state = null)
-        {
-            _state = state ?? new ExecutionState(null, null, null, null, null);
-        }
-
-        public ExecutionState GetState() => _state;
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt) { }
-        public void SetApiConnectionStatus(bool connected) { }
-        public bool GetSchedulingEnabled() => true;
-        public void SetSchedulingEnabled(bool enabled) { }
-        public string GetScheduleTime() => "08:00";
-        public void SetScheduleTime(string time) { }
-    }
 
     private class FakeResiliencePipelineService : IResiliencePipelineService
     {
@@ -87,7 +68,7 @@ public class Bet2InvestHealthCheckTests
     {
         var lastRun = new DateTimeOffset(2026, 2, 25, 10, 0, 0, TimeSpan.Zero);
         var state = new ExecutionState(lastRun, true, "5 paris publiés", null, true);
-        var stateService = new FakeExecutionStateService(state);
+        var stateService = new FakeExecutionStateService(fixedState: state);
         var resilienceService = new FakeResiliencePipelineService(CircuitBreakerState.Closed);
         var healthCheck = new Bet2InvestHealthCheck(stateService, resilienceService);
 

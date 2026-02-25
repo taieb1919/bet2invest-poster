@@ -6,8 +6,8 @@ public interface IBetPublisher
 {
     /// <summary>
     /// Publishes each selected bet via IExtendedBet2InvestClient and records it in history.
-    /// Returns the count of successfully published bets.
+    /// Returns the list of successfully published bets.
     /// Logs with Step="Publish".
     /// </summary>
-    Task<int> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default);
+    Task<IReadOnlyList<PendingBet>> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default);
 }

@@ -1,5 +1,6 @@
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Tests.Helpers;
 using Microsoft.Extensions.Logging.Abstractions;
 using global::Telegram.Bot.Types;
 
@@ -7,31 +8,6 @@ namespace Bet2InvestPoster.Tests.Telegram.Commands;
 
 public class StopCommandHandlerTests
 {
-    // ─── Fake ────────────────────────────────────────────────────────────────
-
-    private class FakeExecutionStateService : IExecutionStateService
-    {
-        private bool _schedulingEnabled = true;
-
-        public bool SetSchedulingEnabledCalled { get; set; }
-        public bool? LastSetValue { get; private set; }
-
-        public ExecutionState GetState() => new(null, null, null, null, null);
-        public void RecordSuccess(int publishedCount) { }
-        public void RecordFailure(string reason) { }
-        public void SetNextRun(DateTimeOffset nextRunAt) { }
-        public void SetApiConnectionStatus(bool connected) { }
-        public bool GetSchedulingEnabled() => _schedulingEnabled;
-        public void SetSchedulingEnabled(bool enabled)
-        {
-            _schedulingEnabled = enabled;
-            SetSchedulingEnabledCalled = true;
-            LastSetValue = enabled;
-        }
-        public string GetScheduleTime() => "08:00";
-        public void SetScheduleTime(string time) { }
-    }
-
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     private static Message MakeMessage(string text = "/stop") =>
@@ -70,7 +46,7 @@ public class StopCommandHandlerTests
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
         Assert.True(state.SetSchedulingEnabledCalled);
-        Assert.False(state.LastSetValue);
+        Assert.False(state.LastSetSchedulingEnabledValue);
         Assert.Single(bot.SentMessages);
         Assert.Contains("⏸", bot.SentMessages[0]);
         Assert.Contains("suspendu", bot.SentMessages[0]);

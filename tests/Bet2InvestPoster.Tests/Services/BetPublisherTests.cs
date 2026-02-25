@@ -111,14 +111,14 @@ public class BetPublisherTests
     // ─── Tests ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task PublishAllAsync_WithEmptyList_ReturnsZeroAndNoPublish()
+    public async Task PublishAllAsync_WithEmptyList_ReturnsEmptyListAndNoPublish()
     {
         var client = new FakeExtendedClient();
         var publisher = CreatePublisher(client: client);
 
         var result = await publisher.PublishAllAsync([]);
 
-        Assert.Equal(0, result);
+        Assert.Empty(result);
         Assert.Equal(0, client.PublishCallCount);
     }
 
@@ -137,7 +137,7 @@ public class BetPublisherTests
 
         var result = await publisher.PublishAllAsync(bets);
 
-        Assert.Equal(3, result);
+        Assert.Equal(3, result.Count);
         Assert.Equal(3, client.PublishCallCount);
         Assert.Equal(3, history.Recorded.Count);
         // Vérifier les betIds enregistrés
@@ -171,13 +171,13 @@ public class BetPublisherTests
     }
 
     [Fact]
-    public async Task PublishAllAsync_WhenPublishFails_SkipsAndReturnsZero()
+    public async Task PublishAllAsync_WhenPublishFails_SkipsAndReturnsEmpty()
     {
         var client = new FakeExtendedClient { ShouldFail = true };
         var publisher = CreatePublisher(client: client);
 
         var result = await publisher.PublishAllAsync([MakeBet(1)]);
-        Assert.Equal(0, result);
+        Assert.Empty(result);
     }
 
     [Fact]
@@ -203,7 +203,7 @@ public class BetPublisherTests
 
         var result = await publisher.PublishAllAsync([bet]);
 
-        Assert.Equal(0, result);
+        Assert.Empty(result);
         Assert.Equal(0, client.PublishCallCount);
     }
 
@@ -218,8 +218,28 @@ public class BetPublisherTests
 
         var result = await publisher.PublishAllAsync([bet]);
 
-        Assert.Equal(0, result);
+        Assert.Empty(result);
         Assert.Equal(0, client.PublishCallCount);
+    }
+
+    [Fact]
+    public async Task PublishAllAsync_ReturnsPublishedBets_AsReadOnlyList()
+    {
+        // Task 5.2 : vérifier que le retour est la liste des bets publiés
+        var history = new FakeHistoryManager();
+        var publisher = CreatePublisher(history: history);
+        var bets = new List<PendingBet>
+        {
+            MakeBet(1, "PSG", "OM"),
+            MakeBet(2, "Real", "Barça")
+        };
+
+        var result = await publisher.PublishAllAsync(bets);
+
+        Assert.IsAssignableFrom<IReadOnlyList<PendingBet>>(result);
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, b => b.Id == 1);
+        Assert.Contains(result, b => b.Id == 2);
     }
 
     [Fact]

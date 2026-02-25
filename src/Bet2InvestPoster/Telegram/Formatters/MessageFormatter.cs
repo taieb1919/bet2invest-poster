@@ -57,7 +57,7 @@ public class MessageFormatter : IMessageFormatter
         return sb.ToString().TrimEnd();
     }
 
-    public string FormatOnboardingMessage(bool apiConnected, int tipsterCount, string scheduleTime)
+    public string FormatOnboardingMessage(bool apiConnected, int tipsterCount, string[] scheduleTimes)
     {
         var sb = new StringBuilder();
         sb.AppendLine("🚀 Bienvenue sur bet2invest-poster !");
@@ -69,7 +69,7 @@ public class MessageFormatter : IMessageFormatter
             sb.AppendLine("⚠️ Connexion API bet2invest échouée — vérifiez vos credentials.");
 
         sb.AppendLine($"👥 Tipsters configurés : {tipsterCount}");
-        sb.AppendLine($"⏰ Publication planifiée : {scheduleTime}");
+        sb.AppendLine($"⏰ Publications planifiées : {string.Join(", ", scheduleTimes)}");
         sb.AppendLine();
         sb.AppendLine("📋 Commandes disponibles :");
         sb.AppendLine("  /run — lancer une publication manuelle");
@@ -220,7 +220,8 @@ public class MessageFormatter : IMessageFormatter
             ? (state.ApiConnected.Value ? "✅ Connecté" : "❌ Déconnecté")
             : "— Inconnu";
 
-        return $"📊 État du système\n• Dernière exécution : {lastRun}\n• Résultat : {result}\n• Prochain run : {nextRun}\n• Connexion API : {apiStatus}";
+        var scheduleTimes = string.Join(", ", state.ScheduleTimes);
+        return $"📊 État du système\n• Dernière exécution : {lastRun}\n• Résultat : {result}\n• Horaires configurés : {scheduleTimes}\n• Prochain run : {nextRun}\n• Connexion API : {apiStatus}";
     }
 
     public string FormatCycleSuccess(CycleResult result)

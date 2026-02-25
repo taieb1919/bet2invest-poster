@@ -112,7 +112,7 @@ builder.Services.AddSingleton<IExecutionStateService>(sp =>
 {
     var opts = sp.GetRequiredService<IOptions<PosterOptions>>().Value;
     var logger = sp.GetRequiredService<ILogger<ExecutionStateService>>();
-    return new ExecutionStateService(opts.DataPath, opts.ScheduleTime, logger);
+    return new ExecutionStateService(opts.DataPath, opts.ScheduleTime, logger, opts.GetEffectiveScheduleTimes());
 });
 
 // MessageFormatter: Singleton — formats Telegram status messages.
@@ -179,6 +179,16 @@ if (posterOpts.MinOdds.HasValue && posterOpts.MaxOdds.HasValue && posterOpts.Min
     Log.Warning("Configuration: Poster:MinOdds ({MinOdds}) > Poster:MaxOdds ({MaxOdds}) — aucun pari ne correspondra aux filtres", posterOpts.MinOdds, posterOpts.MaxOdds);
 if (posterOpts.EventHorizonHours.HasValue && posterOpts.EventHorizonHours.Value <= 0)
     Log.Warning("Configuration: Poster:EventHorizonHours ({EventHorizonHours}) est <= 0 — tous les paris seront exclus", posterOpts.EventHorizonHours);
+
+// Validation des ScheduleTimes — fast-fail si un horaire configur\u00e9 est invalide
+var effectiveTimes = posterOpts.GetEffectiveScheduleTimes();
+var invalidTimes = effectiveTimes
+    .Where(t => !TimeOnly.TryParseExact(t, "HH:mm", System.Globalization.CultureInfo.InvariantCulture,
+        System.Globalization.DateTimeStyles.None, out _))
+    .ToList();
+if (invalidTimes.Count > 0)
+    throw new InvalidOperationException(
+        $"Poster:ScheduleTimes contient des horaires invalides (format attendu HH:mm) : {string.Join(", ", invalidTimes)}");
 
 // NFR8 : délai minimum 500ms entre requêtes API (rate limiting)
 if (b2iOpts.RequestDelayMs < 500)

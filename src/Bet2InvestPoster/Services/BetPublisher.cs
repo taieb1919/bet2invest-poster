@@ -29,17 +29,17 @@ public class BetPublisher : IBetPublisher
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public async Task<int> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
+    public async Task<IReadOnlyList<PendingBet>> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
     {
         using (LogContext.PushProperty("Step", "Publish"))
         {
             if (selected.Count == 0)
             {
                 _logger.LogInformation("0 pronostics sélectionnés — aucune publication");
-                return 0;
+                return Array.Empty<PendingBet>();
             }
 
-            int published = 0;
+            var publishedBets = new List<PendingBet>();
             foreach (var bet in selected)
             {
                 if (bet.Market == null)
@@ -119,14 +119,14 @@ public class BetPublisher : IBetPublisher
                     TipsterName      = bet.TipsterUsername
                 }, ct);
 
-                published++;
+                publishedBets.Add(bet);
             }
 
             _logger.LogInformation(
                 "{Published}/{Total} pronostics publiés avec succès",
-                published, selected.Count);
+                publishedBets.Count, selected.Count);
 
-            return published;
+            return publishedBets;
         }
     }
 

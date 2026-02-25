@@ -1,4 +1,6 @@
 using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Models;
+using Bet2InvestPoster.Telegram.Formatters;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Serilog.Context;
@@ -10,25 +12,30 @@ public class NotificationService : INotificationService
 {
     private readonly ITelegramBotClient _botClient;
     private readonly long _chatId;
+    private readonly IMessageFormatter _messageFormatter;
     private readonly ILogger<NotificationService> _logger;
 
     public NotificationService(
         ITelegramBotClient botClient,
         IOptions<TelegramOptions> options,
+        IMessageFormatter messageFormatter,
         ILogger<NotificationService> logger)
     {
         _botClient = botClient;
         _chatId = options.Value.AuthorizedChatId;
+        _messageFormatter = messageFormatter;
         _logger = logger;
     }
 
-    public async Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default)
+    public async Task NotifySuccessAsync(CycleResult result, CancellationToken ct = default)
     {
-        var text = $"✅ {publishedCount} pronostics publiés avec succès.";
+        var text = _messageFormatter.FormatCycleSuccess(result);
 
         using (LogContext.PushProperty("Step", "Notify"))
         {
-            _logger.LogInformation("Envoi notification succès — {Count} pronostics publiés", publishedCount);
+            _logger.LogInformation(
+                "Envoi notification succès — {Published}/{Filtered} sur {Scraped} scrapés",
+                result.PublishedCount, result.FilteredCount, result.ScrapedCount);
             await _botClient.SendMessage(_chatId, text, cancellationToken: ct);
         }
     }

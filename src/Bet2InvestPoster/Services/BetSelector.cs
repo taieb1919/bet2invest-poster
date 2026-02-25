@@ -23,7 +23,7 @@ public class BetSelector : IBetSelector
         _timeProvider = timeProvider;
     }
 
-    public async Task<List<PendingBet>> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
+    public async Task<SelectionResult> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
     {
         using (LogContext.PushProperty("Step", "Select"))
         {
@@ -95,7 +95,7 @@ public class BetSelector : IBetSelector
                 "{Available} candidats disponibles (après filtres), {Selected} sélectionnés (cible={Target})",
                 available.Count, selected.Count, targetCount);
 
-            return selected;
+            return new SelectionResult { FilteredCount = available.Count, Selected = selected };
         }
     }
 

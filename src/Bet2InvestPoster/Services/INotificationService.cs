@@ -1,8 +1,10 @@
+using Bet2InvestPoster.Models;
+
 namespace Bet2InvestPoster.Services;
 
 public interface INotificationService
 {
-    Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default);
+    Task NotifySuccessAsync(CycleResult result, CancellationToken ct = default);
 
     Task NotifyFailureAsync(string reason, CancellationToken ct = default);
 

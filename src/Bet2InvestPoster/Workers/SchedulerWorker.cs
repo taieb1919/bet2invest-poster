@@ -16,7 +16,7 @@ public class SchedulerWorker : BackgroundService
     private readonly int _maxRetryCount;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<SchedulerWorker> _logger;
-    private string? _lastScheduleTime;
+    private string[]? _lastScheduleTimes;
 
     public SchedulerWorker(
         IServiceProvider serviceProvider,
@@ -40,27 +40,28 @@ public class SchedulerWorker : BackgroundService
     {
         using (LogContext.PushProperty("Step", "Schedule"))
         {
+            var times = _executionStateService.GetScheduleTimes();
             _logger.LogInformation(
-                "SchedulerWorker démarré — exécution planifiée à {ScheduleTime} chaque jour",
-                _executionStateService.GetScheduleTime());
+                "SchedulerWorker démarré — exécutions planifiées à {ScheduleTimes} chaque jour",
+                string.Join(", ", times));
         }
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var currentScheduleTime = _executionStateService.GetScheduleTime();
-            if (_lastScheduleTime is not null && _lastScheduleTime != currentScheduleTime)
+            var currentScheduleTimes = _executionStateService.GetScheduleTimes();
+            if (_lastScheduleTimes is not null && !currentScheduleTimes.SequenceEqual(_lastScheduleTimes))
             {
                 using (LogContext.PushProperty("Step", "Schedule"))
                 {
                     _logger.LogInformation(
-                        "Heure de scheduling modifiée : {OldTime} → {NewTime}",
-                        _lastScheduleTime, currentScheduleTime);
+                        "Horaires de scheduling modifiés : {OldTimes} → {NewTimes}",
+                        string.Join(", ", _lastScheduleTimes),
+                        string.Join(", ", currentScheduleTimes));
                 }
             }
-            _lastScheduleTime = currentScheduleTime;
+            _lastScheduleTimes = currentScheduleTimes;
 
             // Attente que le scheduling soit activé (vérification toutes les 5s)
-            // Vérifié AVANT le calcul du prochain run pour réagir immédiatement au /stop
             while (!_executionStateService.GetSchedulingEnabled() && !stoppingToken.IsCancellationRequested)
             {
                 using (LogContext.PushProperty("Step", "Schedule"))
@@ -122,7 +123,6 @@ public class SchedulerWorker : BackgroundService
             }
             catch (Exception ex)
             {
-                // Toutes les tentatives Polly épuisées — notifier l'échec définitif (FR18)
                 using (LogContext.PushProperty("Step", "Schedule"))
                 {
                     _logger.LogError(ex, "Toutes les tentatives épuisées — cycle définitivement échoué");
@@ -136,12 +136,30 @@ public class SchedulerWorker : BackgroundService
 
     internal DateTimeOffset CalculateNextRun()
     {
-        var scheduleTime = TimeOnly.Parse(_executionStateService.GetScheduleTime(), CultureInfo.InvariantCulture);
+        var scheduleTimes = _executionStateService.GetScheduleTimes();
         var now = _timeProvider.GetUtcNow();
-        var todayAtSchedule = new DateTimeOffset(
-            now.Year, now.Month, now.Day,
-            scheduleTime.Hour, scheduleTime.Minute, 0, TimeSpan.Zero);
 
-        return todayAtSchedule > now ? todayAtSchedule : todayAtSchedule.AddDays(1);
+        DateTimeOffset? closest = null;
+        foreach (var timeStr in scheduleTimes)
+        {
+            if (!TimeOnly.TryParseExact(timeStr, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var t))
+            {
+                using (LogContext.PushProperty("Step", "Schedule"))
+                {
+                    _logger.LogWarning("Horaire invalide ignoré : '{TimeStr}' — format attendu HH:mm", timeStr);
+                }
+                continue;
+            }
+
+            var todayAt = new DateTimeOffset(
+                now.Year, now.Month, now.Day,
+                t.Hour, t.Minute, 0, TimeSpan.Zero);
+
+            var candidate = todayAt > now ? todayAt : todayAt.AddDays(1);
+            if (closest is null || candidate < closest)
+                closest = candidate;
+        }
+
+        return closest ?? now.AddDays(1);
     }
 }

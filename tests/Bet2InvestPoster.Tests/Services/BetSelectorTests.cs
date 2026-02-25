@@ -42,9 +42,9 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync(candidates);
 
-        Assert.DoesNotContain(result, b => b.Id == 3);
-        Assert.DoesNotContain(result, b => b.Id == 5);
-        Assert.All(result, b => Assert.Contains(b.Id, candidates.Select(c => c.Id)));
+        Assert.DoesNotContain(result.Selected, b => b.Id == 3);
+        Assert.DoesNotContain(result.Selected, b => b.Id == 5);
+        Assert.All(result.Selected, b => Assert.Contains(b.Id, candidates.Select(c => c.Id)));
     }
 
     [Fact]
@@ -58,8 +58,8 @@ public class BetSelectorTests
         for (int i = 0; i < 50; i++)
         {
             var result = await selector.SelectAsync(candidates);
-            observedCounts.Add(result.Count);
-            Assert.Contains(result.Count, validCounts);
+            observedCounts.Add(result.Selected.Count);
+            Assert.Contains(result.Selected.Count, validCounts);
         }
 
         // Après 50 runs, on doit voir au moins 2 valeurs différentes
@@ -70,7 +70,7 @@ public class BetSelectorTests
         for (int j = 0; j < 10; j++)
         {
             var r = await selector.SelectAsync(candidates);
-            allSelectedIds.Add(r.Select(b => b.Id).ToHashSet());
+            allSelectedIds.Add(r.Selected.Select(b => b.Id).ToHashSet());
         }
         // Au moins 2 sélections différentes parmi 10 runs
         Assert.True(allSelectedIds.Distinct(HashSet<int>.CreateSetComparer()).Count() > 1,
@@ -85,7 +85,7 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync(candidates);
 
-        Assert.Equal(3, result.Count);
+        Assert.Equal(3, result.Selected.Count);
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync([]);
 
-        Assert.Empty(result);
+        Assert.Empty(result.Selected);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync(candidates);
 
-        Assert.Empty(result);
+        Assert.Empty(result.Selected);
     }
 
     [Fact]
@@ -160,9 +160,9 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync(candidates);
 
-        Assert.DoesNotContain(result, b => b.Id == 1);
-        Assert.DoesNotContain(result, b => b.Id == 2);
-        Assert.All(result, b => Assert.True(b.Price >= 1.50m));
+        Assert.DoesNotContain(result.Selected, b => b.Id == 1);
+        Assert.DoesNotContain(result.Selected, b => b.Id == 2);
+        Assert.All(result.Selected, b => Assert.True(b.Price >= 1.50m));
     }
 
     [Fact]
@@ -180,9 +180,9 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync(candidates);
 
-        Assert.DoesNotContain(result, b => b.Id == 3);
-        Assert.DoesNotContain(result, b => b.Id == 4);
-        Assert.All(result, b => Assert.True(b.Price <= 3.50m));
+        Assert.DoesNotContain(result.Selected, b => b.Id == 3);
+        Assert.DoesNotContain(result.Selected, b => b.Id == 4);
+        Assert.All(result.Selected, b => Assert.True(b.Price <= 3.50m));
     }
 
     [Fact]
@@ -203,10 +203,10 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync(candidates);
 
-        Assert.DoesNotContain(result, b => b.Id == 1);
-        Assert.DoesNotContain(result, b => b.Id == 5);
-        Assert.DoesNotContain(result, b => b.Id == 6);
-        Assert.All(result, b => Assert.True(b.Price >= 1.20m && b.Price <= 3.50m));
+        Assert.DoesNotContain(result.Selected, b => b.Id == 1);
+        Assert.DoesNotContain(result.Selected, b => b.Id == 5);
+        Assert.DoesNotContain(result.Selected, b => b.Id == 6);
+        Assert.All(result.Selected, b => Assert.True(b.Price >= 1.20m && b.Price <= 3.50m));
     }
 
     // ── Tests filtrage par plage horaire (Story 9.1 AC#1, AC#3) ──────────
@@ -227,8 +227,8 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync(candidates);
 
-        Assert.DoesNotContain(result, b => b.Id == 3);
-        Assert.DoesNotContain(result, b => b.Id == 4);
+        Assert.DoesNotContain(result.Selected, b => b.Id == 3);
+        Assert.DoesNotContain(result.Selected, b => b.Id == 4);
     }
 
     // ── Tests rétrocompatibilité (Story 9.1 AC#2, AC#3) ───────────────────
@@ -247,7 +247,7 @@ public class BetSelectorTests
         var result = await selector.SelectAsync(candidates);
 
         // Tous les candidats doivent être disponibles (rétrocompatibilité)
-        Assert.Equal(2, result.Count);
+        Assert.Equal(2, result.Selected.Count);
     }
 
     [Fact]
@@ -264,7 +264,7 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync(candidates);
 
-        Assert.Equal(2, result.Count);
+        Assert.Equal(2, result.Selected.Count);
     }
 
     // ── Test zéro candidats après filtrage (Story 9.1 AC#4) ──────────────
@@ -283,7 +283,7 @@ public class BetSelectorTests
 
         var result = await selector.SelectAsync(candidates);
 
-        Assert.Empty(result);
+        Assert.Empty(result.Selected);
     }
 
     // ── Test filtrage AVANT sélection aléatoire (Story 9.1 AC#1) ─────────
@@ -302,7 +302,7 @@ public class BetSelectorTests
         {
             var result = await selector.SelectAsync(candidates);
             // Aucun élément avec id > 10 ne doit être sélectionné
-            Assert.All(result, b => Assert.True(b.Id <= 10, $"Id {b.Id} a une cote > 2.00 et ne devrait pas être sélectionné"));
+            Assert.All(result.Selected, b => Assert.True(b.Id <= 10, $"Id {b.Id} a une cote > 2.00 et ne devrait pas être sélectionné"));
         }
     }
 
@@ -335,19 +335,19 @@ public class BetSelectorTests
         var selector = CreateSelector(options: options);
         var candidates = Enumerable.Range(1, 20).Select(id => MakeBet(id)).ToList();
 
-        var results = new List<List<PendingBet>>();
+        var results = new List<Bet2InvestPoster.Models.SelectionResult>();
         for (int i = 0; i < 20; i++)
             results.Add(await selector.SelectAsync(candidates));
 
         // Les résultats doivent varier (sélection aléatoire)
         var distinctSets = results
-            .Select(r => r.Select(b => b.Id).ToHashSet())
+            .Select(r => r.Selected.Select(b => b.Id).ToHashSet())
             .Distinct(HashSet<int>.CreateSetComparer())
             .Count();
         Assert.True(distinctSets > 1, "Le mode random doit produire des sélections variables");
 
         // Chaque résultat doit avoir entre 1 et 20 éléments (≤ 20 candidats)
-        Assert.All(results, r => Assert.InRange(r.Count, 0, 20));
+        Assert.All(results, r => Assert.InRange(r.Selected.Count, 0, 20));
     }
 
     [Fact]
@@ -373,7 +373,7 @@ public class BetSelectorTests
         var result = await selector.SelectAsync(candidates);
 
         // Les 5 bets haute ROI (id 21-25) doivent tous être présents quelle que soit la cible (5/10/15)
-        Assert.All(highRoiBets, hb => Assert.Contains(result, b => b.Id == hb.Id));
+        Assert.All(highRoiBets, hb => Assert.Contains(result.Selected, b => b.Id == hb.Id));
     }
 
     [Fact]
@@ -398,9 +398,9 @@ public class BetSelectorTests
         {
             var result = await selector.SelectAsync(candidates);
             // Vérifier que les bets haute ROI dominent la sélection
-            var highRoiCount = result.Count(b => b.Id >= 11);
-            Assert.True(highRoiCount >= result.Count / 2,
-                $"Les bets haute ROI devraient dominer : {highRoiCount}/{result.Count}");
+            var highRoiCount = result.Selected.Count(b => b.Id >= 11);
+            Assert.True(highRoiCount >= result.Selected.Count / 2,
+                $"Les bets haute ROI devraient dominer : {highRoiCount}/{result.Selected.Count}");
         }
     }
 
@@ -418,8 +418,8 @@ public class BetSelectorTests
 
         // La sélection ne doit pas lever d'exception (redistribution des poids)
         var result = await selector.SelectAsync(candidates);
-        Assert.NotEmpty(result);
-        Assert.True(result.Count <= 15);
+        Assert.NotEmpty(result.Selected);
+        Assert.True(result.Selected.Count <= 15);
     }
 
     [Fact]
@@ -434,7 +434,7 @@ public class BetSelectorTests
             .ToList();
 
         var result = await selector.SelectAsync(candidates);
-        Assert.NotEmpty(result);
+        Assert.NotEmpty(result.Selected);
     }
 
     [Fact]
@@ -460,7 +460,7 @@ public class BetSelectorTests
         for (int i = 0; i < runs; i++)
         {
             var result = await selector.SelectAsync(candidates);
-            tennisTotalSelected += result.Count(b => b.Id >= 16);
+            tennisTotalSelected += result.Selected.Count(b => b.Id >= 16);
         }
         // En moyenne, si la diversité fonctionne, Tennis est favorisé malgré sa faible quantité
         Assert.True(tennisTotalSelected > 0, "Les bets Tennis (sport moins représenté) doivent apparaître dans les sélections");
@@ -493,7 +493,7 @@ public class BetSelectorTests
         for (int i = 0; i < runs; i++)
         {
             var result = await selector.SelectAsync(candidates);
-            nearTotalSelected += result.Count(b => b.Id >= 11);
+            nearTotalSelected += result.Selected.Count(b => b.Id >= 11);
         }
         // Les bets proches doivent dominer sur les runs
         Assert.True(nearTotalSelected > 0, "Les bets avec événements proches doivent être sélectionnés");
