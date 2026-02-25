@@ -2,6 +2,7 @@ using System.Globalization;
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
 using Microsoft.Extensions.Options;
+using Polly.CircuitBreaker;
 using Serilog.Context;
 
 namespace Bet2InvestPoster.Workers;
@@ -102,6 +103,19 @@ public class SchedulerWorker : BackgroundService
                     await cycleService.RunCycleAsync(ct);
                 }, stoppingToken);
             }
+            catch (BrokenCircuitException)
+            {
+                var remaining = _resiliencePipelineService.GetCircuitBreakerRemainingDuration();
+                var minutes = remaining?.TotalMinutes ?? 5;
+                using (LogContext.PushProperty("Step", "Schedule"))
+                {
+                    _logger.LogWarning("Circuit breaker actif — cycle ignoré. Réessai dans {Minutes:F0} min.", minutes);
+                }
+                using var cbCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                await _notificationService.SendMessageAsync(
+                    $"🔴 Circuit breaker actif — service API indisponible. Réessai automatique dans {minutes:F0} min.",
+                    cbCts.Token);
+            }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 throw;
@@ -113,8 +127,9 @@ public class SchedulerWorker : BackgroundService
                 {
                     _logger.LogError(ex, "Toutes les tentatives épuisées — cycle définitivement échoué");
                 }
+                using var failCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
                 await _notificationService.NotifyFinalFailureAsync(
-                    _maxRetryCount, ex.GetType().Name, CancellationToken.None);
+                    _maxRetryCount, ex.GetType().Name, failCts.Token);
             }
         }
     }

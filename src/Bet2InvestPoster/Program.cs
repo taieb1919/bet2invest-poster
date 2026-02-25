@@ -10,13 +10,18 @@ using Serilog;
 using Serilog.Events;
 using Telegram.Bot;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
 
 // UseSystemd integration for VPS deployment
 builder.Services.AddSystemd();
 
 // Read log path early from configuration before Serilog setup
 var logPath = builder.Configuration.GetValue<string>("Poster:LogPath") ?? "logs";
+// Read log retention early (same pattern as LogPath — needed before Serilog setup)
+var logRetentionDays = builder.Configuration.GetValue<int?>("Poster:LogRetentionDays") ?? 30;
+if (logRetentionDays <= 0)
+    throw new InvalidOperationException(
+        $"Poster:LogRetentionDays doit être > 0 (valeur actuelle : {logRetentionDays})");
 
 // Console: clean human-readable output without JSON property blob
 const string consoleTemplate =
@@ -35,6 +40,7 @@ builder.Services.AddSerilog(lc => lc
     .WriteTo.File(
         path: Path.Combine(logPath, "bet2invest-poster-.log"),
         rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: logRetentionDays,
         outputTemplate: fileTemplate));
 
 // Register Options — env vars automatically override appsettings.json via Generic Host
@@ -109,6 +115,9 @@ builder.Services.AddSingleton<IExecutionStateService>(sp =>
 // MessageFormatter: Singleton — formats Telegram status messages.
 builder.Services.AddSingleton<IMessageFormatter, MessageFormatter>();
 
+// OnboardingService: Singleton — sends onboarding message on first launch.
+builder.Services.AddSingleton<IOnboardingService, OnboardingService>();
+
 // Command handlers: Singleton — /run, /status, /start, /stop, /history, /schedule dispatch.
 builder.Services.AddSingleton<ICommandHandler, RunCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, StatusCommandHandler>();
@@ -121,13 +130,24 @@ builder.Services.AddSingleton<ICommandHandler, TipstersCommandHandler>();
 // TelegramBotService: HostedService — bot long polling running in background.
 builder.Services.AddHostedService<TelegramBotService>();
 
-var host = builder.Build();
+// Health checks — NFR15
+builder.Services.AddHealthChecks()
+    .AddCheck<Bet2InvestHealthCheck>("bet2invest");
+
+// Kestrel: écoute uniquement sur le port health check (pas le port HTTP standard)
+var healthCheckPort = builder.Configuration.GetValue<int?>("Poster:HealthCheckPort") ?? 8080;
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenLocalhost(healthCheckPort);
+});
+
+var app = builder.Build();
 
 // Fast-fail: validate required credentials before starting
 // Credentials must be provided via environment variables, never in appsettings.json
-var b2iOpts = host.Services.GetRequiredService<IOptions<Bet2InvestOptions>>().Value;
-var tgOpts = host.Services.GetRequiredService<IOptions<TelegramOptions>>().Value;
-var posterOpts = host.Services.GetRequiredService<IOptions<PosterOptions>>().Value;
+var b2iOpts = app.Services.GetRequiredService<IOptions<Bet2InvestOptions>>().Value;
+var tgOpts = app.Services.GetRequiredService<IOptions<TelegramOptions>>().Value;
+var posterOpts = app.Services.GetRequiredService<IOptions<PosterOptions>>().Value;
 var missingVars = new List<string>();
 if (string.IsNullOrWhiteSpace(b2iOpts.Identifier)) missingVars.Add("Bet2Invest__Identifier");
 if (string.IsNullOrWhiteSpace(b2iOpts.Password)) missingVars.Add("Bet2Invest__Password");
@@ -163,4 +183,16 @@ if (posterOpts.RetryDelayMs < 1000)
     throw new InvalidOperationException(
         $"Poster:RetryDelayMs doit être >= 1000ms (valeur actuelle : {posterOpts.RetryDelayMs}ms)");
 
-host.Run();
+if (posterOpts.CircuitBreakerFailureThreshold <= 0)
+    throw new InvalidOperationException(
+        $"Poster:CircuitBreakerFailureThreshold doit être > 0 (valeur actuelle : {posterOpts.CircuitBreakerFailureThreshold})");
+if (posterOpts.CircuitBreakerDurationSeconds <= 0)
+    throw new InvalidOperationException(
+        $"Poster:CircuitBreakerDurationSeconds doit être > 0 (valeur actuelle : {posterOpts.CircuitBreakerDurationSeconds})");
+if (posterOpts.HealthCheckPort is < 1 or > 65535)
+    throw new InvalidOperationException(
+        $"Poster:HealthCheckPort doit être entre 1 et 65535 (valeur actuelle : {posterOpts.HealthCheckPort})");
+
+app.MapHealthChecks("/health");
+
+app.Run();
