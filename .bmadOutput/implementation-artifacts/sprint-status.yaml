@@ -121,7 +121,7 @@ development_status:
 
   epic-13: in-progress
   13-1-enrichir-message-succes-statistiques-scraping: done
-  13-2-detail-des-pronostics-publies-dans-le-message: backlog
+  13-2-detail-des-pronostics-publies-dans-le-message: done
   epic-13-retrospective: optional
 
   epic-14: backlog

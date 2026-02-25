@@ -3,6 +3,7 @@ using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Telegram.Formatters;
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Tests.Telegram.Commands;
+using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -31,11 +32,14 @@ public class NotificationServiceTests
     {
         var fake = new FakeTelegramBotClient();
         var service = CreateService(fake);
+        var bets = Enumerable.Range(1, 10)
+            .Select(i => new PendingBet { Id = i, Price = 2.00m, TipsterUsername = "tipster" })
+            .ToList();
 
-        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 45, FilteredCount = 45, PublishedCount = 10 });
+        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 45, FilteredCount = 45, PublishedBets = bets });
 
         Assert.Single(fake.SentMessages);
-        Assert.Equal("✅ 10 pronostics publiés sur 45 scrapés.", fake.SentMessages[0]);
+        Assert.StartsWith("✅ 10 pronostics publiés sur 45 scrapés.", fake.SentMessages[0]);
     }
 
     [Fact]
@@ -44,7 +48,7 @@ public class NotificationServiceTests
         var fake = new FakeTelegramBotClient();
         var service = CreateService(fake);
 
-        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 0, FilteredCount = 0, PublishedCount = 0 });
+        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 0, FilteredCount = 0 });
 
         Assert.Single(fake.SentMessages);
         Assert.Equal("⚠️ Aucun pronostic disponible chez les tipsters configurés.", fake.SentMessages[0]);
@@ -68,7 +72,8 @@ public class NotificationServiceTests
         var fake = new FakeTelegramBotClient();
         var service = CreateService(fake, chatId: 42000L);
 
-        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 10, FilteredCount = 10, PublishedCount = 5 });
+        var bets5 = Enumerable.Range(1, 5).Select(i => new PendingBet { Id = i, Price = 2.00m, TipsterUsername = "tipster" }).ToList();
+        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 10, FilteredCount = 10, PublishedBets = bets5 });
 
         Assert.Single(fake.SentChatIds);
         Assert.Equal(42000L, fake.SentChatIds[0]);
@@ -104,10 +109,11 @@ public class NotificationServiceTests
         var fake = new FakeTelegramBotClient();
         var service = CreateService(fake);
 
-        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 45, FilteredCount = 32, PublishedCount = 10, FiltersWereActive = true });
+        var bets10 = Enumerable.Range(1, 10).Select(i => new PendingBet { Id = i, Price = 2.00m, TipsterUsername = "tipster" }).ToList();
+        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 45, FilteredCount = 32, FiltersWereActive = true, PublishedBets = bets10 });
 
         Assert.Single(fake.SentMessages);
-        Assert.Equal("✅ 10/32 filtrés sur 45 scrapés.", fake.SentMessages[0]);
+        Assert.StartsWith("✅ 10/32 filtrés sur 45 scrapés.", fake.SentMessages[0]);
     }
 
     [Fact]
@@ -116,7 +122,7 @@ public class NotificationServiceTests
         var fake = new FakeTelegramBotClient();
         var service = CreateService(fake);
 
-        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 0, FilteredCount = 0, PublishedCount = 0 });
+        await service.NotifySuccessAsync(new CycleResult { ScrapedCount = 0, FilteredCount = 0 });
 
         Assert.Single(fake.SentMessages);
         Assert.Equal("⚠️ Aucun pronostic disponible chez les tipsters configurés.", fake.SentMessages[0]);

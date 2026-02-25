@@ -85,29 +85,28 @@ public class PostingCycleService : IPostingCycleService
                     {
                         ScrapedCount      = candidates.Count,
                         FilteredCount     = selectionResult.FilteredCount,
-                        PublishedCount    = 0,
                         FiltersWereActive = true
                     };
                 }
 
                 // 5. Publication et enregistrement (Step="Publish" géré dans BetPublisher)
-                var published = await _betPublisher.PublishAllAsync(selectionResult.Selected, ct);
+                var publishedBets = await _betPublisher.PublishAllAsync(selectionResult.Selected, ct);
 
                 var filtersActive = HasActiveFilters();
                 var cycleResult = new CycleResult
                 {
                     ScrapedCount      = candidates.Count,
                     FilteredCount     = selectionResult.FilteredCount,
-                    PublishedCount    = published,
-                    FiltersWereActive = filtersActive
+                    FiltersWereActive = filtersActive,
+                    PublishedBets     = publishedBets
                 };
 
                 _logger.LogInformation(
                     "Cycle terminé — {Published} pronostics publiés sur {Filtered} filtrés sur {Scraped} scrapés",
-                    published, selectionResult.FilteredCount, candidates.Count);
+                    publishedBets.Count, selectionResult.FilteredCount, candidates.Count);
 
                 // 6. Mise à jour état + notification succès (Story 4.3)
-                _executionStateService.RecordSuccess(published);
+                _executionStateService.RecordSuccess(publishedBets.Count);
                 await _notificationService.NotifySuccessAsync(cycleResult, ct);
 
                 return cycleResult;

@@ -6,6 +6,7 @@ namespace Bet2InvestPoster.Telegram.Formatters;
 
 public class MessageFormatter : IMessageFormatter
 {
+    private const int MaxDisplayedBets = 15;
     public string FormatHistory(List<HistoryEntry> entries)
     {
         if (entries.Count == 0)
@@ -227,13 +228,41 @@ public class MessageFormatter : IMessageFormatter
         if (result.ScrapedCount == 0)
             return "⚠️ Aucun pronostic disponible chez les tipsters configurés.";
 
+        string summary;
         if (result.HasActiveFilters)
         {
             var icon = result.PublishedCount == 0 ? "⚠️" : "✅";
-            return $"{icon} {result.PublishedCount}/{result.FilteredCount} filtrés sur {result.ScrapedCount} scrapés.";
+            summary = $"{icon} {result.PublishedCount}/{result.FilteredCount} filtrés sur {result.ScrapedCount} scrapés.";
+        }
+        else
+        {
+            summary = $"✅ {result.PublishedCount} pronostics publiés sur {result.ScrapedCount} scrapés.";
         }
 
-        return $"✅ {result.PublishedCount} pronostics publiés sur {result.ScrapedCount} scrapés.";
+        if (result.PublishedBets.Count == 0)
+            return summary;
+
+        var sb = new StringBuilder();
+        sb.AppendLine(summary);
+
+        var bets = result.PublishedBets;
+        var displayCount = Math.Min(bets.Count, MaxDisplayedBets);
+        sb.AppendLine();
+
+        for (var i = 0; i < displayCount; i++)
+        {
+            var bet = bets[i];
+            var matchDesc = bet.Event?.Home != null && bet.Event?.Away != null
+                ? $"{bet.Event.Home} vs {bet.Event.Away}"
+                : "(sans description)";
+            var tipster = bet.TipsterUsername ?? "inconnu";
+            sb.AppendLine($"• {matchDesc} — {bet.Price:F2} ({tipster})");
+        }
+
+        if (bets.Count > MaxDisplayedBets)
+            sb.AppendLine($"... et {bets.Count - MaxDisplayedBets} autres");
+
+        return sb.ToString().TrimEnd();
     }
 }
 

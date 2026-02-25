@@ -1,3 +1,4 @@
+using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
 
 namespace Bet2InvestPoster.Tests.Helpers;
@@ -7,7 +8,7 @@ public class FakeNotificationService : INotificationService
     public List<string> SentMessages { get; } = [];
 
     public int SuccessCallCount { get; private set; }
-    public int? LastSuccessCount { get; private set; }
+    public CycleResult? LastSuccessResult { get; private set; }
 
     public int FailureCallCount { get; private set; }
     public string? LastFailureReason { get; private set; }
@@ -20,10 +21,10 @@ public class FakeNotificationService : INotificationService
     public int NoFilteredCandidatesCallCount { get; private set; }
     public string? LastFilterDetails { get; private set; }
 
-    public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default)
+    public Task NotifySuccessAsync(CycleResult result, CancellationToken ct = default)
     {
         SuccessCallCount++;
-        LastSuccessCount = publishedCount;
+        LastSuccessResult = result;
         return Task.CompletedTask;
     }
 
