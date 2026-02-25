@@ -1,7 +1,6 @@
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
-using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -65,6 +64,12 @@ public class PostingCycleServiceTests
             _callOrder?.Add("LoadTipsters");
             return Task.FromResult(TipstersToReturn);
         }
+
+        public Task<TipsterConfig> AddTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
+
+        public Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
     }
 
     private sealed class FakeUpcomingBetsFetcher : IUpcomingBetsFetcher

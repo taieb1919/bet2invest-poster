@@ -16,6 +16,12 @@ public class TipstersCommandHandlerTests
     {
         private readonly List<TipsterConfig> _tipsters;
 
+        // Controls for add/remove behavior
+        public bool AddThrowsDuplicate { get; set; }
+        public bool AddThrowsArgument { get; set; }
+        public TipsterConfig? AddedResult { get; set; }
+        public bool RemoveResult { get; set; } = true;
+
         public FakeTipsterService(List<TipsterConfig>? tipsters = null)
         {
             _tipsters = tipsters ?? [];
@@ -23,12 +29,32 @@ public class TipstersCommandHandlerTests
 
         public Task<List<TipsterConfig>> LoadTipstersAsync(CancellationToken ct = default) =>
             Task.FromResult(_tipsters);
+
+        public Task<TipsterConfig> AddTipsterAsync(string url, CancellationToken ct = default)
+        {
+            if (AddThrowsDuplicate)
+                throw new InvalidOperationException("Déjà dans la liste");
+            if (AddThrowsArgument)
+                throw new ArgumentException("URL invalide");
+            var config = AddedResult ?? new TipsterConfig { Url = url, Name = "slug" };
+            config.TryExtractSlug(out _);
+            return Task.FromResult(config);
+        }
+
+        public Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default) =>
+            Task.FromResult(RemoveResult);
     }
 
     private class ThrowingFakeTipsterService : ITipsterService
     {
         public Task<List<TipsterConfig>> LoadTipstersAsync(CancellationToken ct = default) =>
             throw new IOException("Fichier tipsters.json corrompu");
+
+        public Task<TipsterConfig> AddTipsterAsync(string url, CancellationToken ct = default) =>
+            throw new IOException("Erreur IO");
+
+        public Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default) =>
+            throw new IOException("Erreur IO");
     }
 
     // --- Helpers ---
@@ -40,6 +66,19 @@ public class TipstersCommandHandlerTests
     {
         var services = new ServiceCollection();
         services.AddScoped<ITipsterService>(_ => new FakeTipsterService(tipsters));
+        var provider = services.BuildServiceProvider();
+        var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
+
+        return new TipstersCommandHandler(
+            scopeFactory,
+            new MessageFormatter(),
+            NullLogger<TipstersCommandHandler>.Instance);
+    }
+
+    private static TipstersCommandHandler CreateHandlerWithFake(FakeTipsterService fake)
+    {
+        var services = new ServiceCollection();
+        services.AddScoped<ITipsterService>(_ => fake);
         var provider = services.BuildServiceProvider();
         var scopeFactory = provider.GetRequiredService<IServiceScopeFactory>();
 
@@ -119,17 +158,126 @@ public class TipstersCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_WithArguments_SendsProchainementMessage()
+    public async Task HandleAsync_AddUnknownSubcommand_SendsUsageMessage()
     {
-        // TelegramBotService passe le message complet — le handler détecte les arguments lui-même.
-        // Les sous-commandes add/remove ne sont pas encore implémentées (story 8.2).
+        // Sous-commande inconnue → message usage général
         var handler = CreateHandler([]);
         var bot = new FakeTelegramBotClient();
 
-        await handler.HandleAsync(bot, MakeMessage("/tipsters add https://example.com"), CancellationToken.None);
+        await handler.HandleAsync(bot, MakeMessage("/tipsters unknown"), CancellationToken.None);
 
         Assert.Single(bot.SentMessages);
-        Assert.Contains("prochainement", bot.SentMessages[0]);
+        Assert.Contains("Usage", bot.SentMessages[0]);
+    }
+
+    // --- Tests sous-commandes add / remove (Story 8.2) ---
+
+    [Fact]
+    public async Task HandleAsync_AddValid_SendsConfirmationWithSlug()
+    {
+        var fake = new FakeTipsterService
+        {
+            AddedResult = new TipsterConfig
+            {
+                Url = "https://bet2invest.com/tipsters/performance-stats/johndoe",
+                Name = "johndoe"
+            }
+        };
+        var handler = CreateHandlerWithFake(fake);
+        var bot = new FakeTelegramBotClient();
+
+        await handler.HandleAsync(bot,
+            MakeMessage("/tipsters add https://bet2invest.com/tipsters/performance-stats/johndoe"),
+            CancellationToken.None);
+
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("✅ Tipster ajouté", bot.SentMessages[0]);
+        Assert.Contains("johndoe", bot.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_AddDuplicate_SendsDuplicateMessage()
+    {
+        var fake = new FakeTipsterService { AddThrowsDuplicate = true };
+        var handler = CreateHandlerWithFake(fake);
+        var bot = new FakeTelegramBotClient();
+
+        await handler.HandleAsync(bot,
+            MakeMessage("/tipsters add https://bet2invest.com/tipsters/performance-stats/johndoe"),
+            CancellationToken.None);
+
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("déjà dans la liste", bot.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_AddInvalidUrl_SendsInvalidUrlMessage()
+    {
+        var fake = new FakeTipsterService { AddThrowsArgument = true };
+        var handler = CreateHandlerWithFake(fake);
+        var bot = new FakeTelegramBotClient();
+
+        await handler.HandleAsync(bot,
+            MakeMessage("/tipsters add not-a-valid-url"),
+            CancellationToken.None);
+
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("URL invalide", bot.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_AddWithoutArgument_SendsUsageMessage()
+    {
+        var handler = CreateHandler([]);
+        var bot = new FakeTelegramBotClient();
+
+        await handler.HandleAsync(bot, MakeMessage("/tipsters add"), CancellationToken.None);
+
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("Usage : /tipsters add", bot.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RemoveValid_SendsConfirmationWithSlug()
+    {
+        var fake = new FakeTipsterService { RemoveResult = true };
+        var handler = CreateHandlerWithFake(fake);
+        var bot = new FakeTelegramBotClient();
+
+        await handler.HandleAsync(bot,
+            MakeMessage("/tipsters remove https://bet2invest.com/tipsters/performance-stats/johndoe"),
+            CancellationToken.None);
+
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("🗑️ Tipster retiré", bot.SentMessages[0]);
+        Assert.Contains("johndoe", bot.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RemoveNotFound_SendsNotFoundMessage()
+    {
+        var fake = new FakeTipsterService { RemoveResult = false };
+        var handler = CreateHandlerWithFake(fake);
+        var bot = new FakeTelegramBotClient();
+
+        await handler.HandleAsync(bot,
+            MakeMessage("/tipsters remove https://bet2invest.com/tipsters/performance-stats/unknown"),
+            CancellationToken.None);
+
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("non trouvé", bot.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RemoveWithoutArgument_SendsUsageMessage()
+    {
+        var handler = CreateHandler([]);
+        var bot = new FakeTelegramBotClient();
+
+        await handler.HandleAsync(bot, MakeMessage("/tipsters remove"), CancellationToken.None);
+
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("Usage : /tipsters remove", bot.SentMessages[0]);
     }
 
     [Fact]
@@ -169,6 +317,34 @@ public class TipstersCommandHandlerTests
         var bot = new FakeTelegramBotClient();
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
+
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("❌ Erreur", bot.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_AddWhenServiceThrowsUnexpected_SendsGenericErrorMessage()
+    {
+        var handler = CreateThrowingHandler();
+        var bot = new FakeTelegramBotClient();
+
+        await handler.HandleAsync(bot,
+            MakeMessage("/tipsters add https://bet2invest.com/tipsters/performance-stats/x"),
+            CancellationToken.None);
+
+        Assert.Single(bot.SentMessages);
+        Assert.Contains("❌ Erreur", bot.SentMessages[0]);
+    }
+
+    [Fact]
+    public async Task HandleAsync_RemoveWhenServiceThrowsUnexpected_SendsGenericErrorMessage()
+    {
+        var handler = CreateThrowingHandler();
+        var bot = new FakeTelegramBotClient();
+
+        await handler.HandleAsync(bot,
+            MakeMessage("/tipsters remove https://bet2invest.com/tipsters/performance-stats/x"),
+            CancellationToken.None);
 
         Assert.Single(bot.SentMessages);
         Assert.Contains("❌ Erreur", bot.SentMessages[0]);

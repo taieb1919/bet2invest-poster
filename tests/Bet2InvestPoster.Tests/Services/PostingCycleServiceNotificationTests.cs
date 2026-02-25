@@ -1,6 +1,5 @@
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
-using Bet2InvestPoster.Models;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using static Bet2InvestPoster.Tests.Services.PostingCycleServiceTests;
@@ -40,6 +39,12 @@ public class PostingCycleServiceNotificationTests
     {
         public Task<List<Models.TipsterConfig>> LoadTipstersAsync(CancellationToken ct = default)
             => Task.FromResult(new List<Models.TipsterConfig>());
+
+        public Task<Models.TipsterConfig> AddTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
+
+        public Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
     }
 
     private sealed class SimpleUpcomingBetsFetcher : IUpcomingBetsFetcher
