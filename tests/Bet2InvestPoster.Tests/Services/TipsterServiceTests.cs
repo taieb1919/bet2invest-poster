@@ -199,4 +199,120 @@ public class TipsterServiceTests : IDisposable
 
         Assert.Empty(result);
     }
+
+    // --- 8.2: AddTipsterAsync ---
+
+    [Fact]
+    public async Task AddTipsterAsync_ValidUrl_AddsTipsterAndPersists()
+    {
+        WriteTipsters("[]");
+        var service = CreateService();
+
+        var result = await service.AddTipsterAsync(
+            "https://bet2invest.com/tipsters/performance-stats/johndoe");
+
+        Assert.Equal("https://bet2invest.com/tipsters/performance-stats/johndoe", result.Url);
+        Assert.Equal("johndoe", result.Name);
+
+        // Verify persistence
+        var loaded = await service.LoadTipstersAsync();
+        Assert.Single(loaded);
+        Assert.Equal("johndoe", loaded[0].Name);
+    }
+
+    [Fact]
+    public async Task AddTipsterAsync_DuplicateUrl_ThrowsInvalidOperationException()
+    {
+        WriteTipsters("""
+        [{ "url": "https://bet2invest.com/tipsters/performance-stats/johndoe", "name": "johndoe" }]
+        """);
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.AddTipsterAsync("https://bet2invest.com/tipsters/performance-stats/johndoe"));
+    }
+
+    [Fact]
+    public async Task AddTipsterAsync_InvalidUrl_ThrowsArgumentException()
+    {
+        WriteTipsters("[]");
+        var service = CreateService();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            service.AddTipsterAsync("not-a-valid-url"));
+    }
+
+    [Fact]
+    public async Task AddTipsterAsync_WritesAtomically_TempFileUsedThenRenamed()
+    {
+        WriteTipsters("[]");
+        var service = CreateService();
+        var filePath = Path.Combine(_tempDir, "tipsters.json");
+        var tempPath = filePath + ".tmp";
+
+        await service.AddTipsterAsync(
+            "https://bet2invest.com/tipsters/performance-stats/testslug");
+
+        // The .tmp file should not exist after a successful write (renamed to .json)
+        Assert.False(File.Exists(tempPath));
+        Assert.True(File.Exists(filePath));
+
+        // Verify content is valid JSON with the new entry
+        var content = await File.ReadAllTextAsync(filePath);
+        Assert.Contains("testslug", content);
+    }
+
+    // --- 8.2: RemoveTipsterAsync ---
+
+    [Fact]
+    public async Task RemoveTipsterAsync_ExistingUrl_RemovesTipsterAndPersists()
+    {
+        WriteTipsters("""
+        [
+            { "url": "https://bet2invest.com/tipsters/performance-stats/Alice", "name": "Alice" },
+            { "url": "https://bet2invest.com/tipsters/performance-stats/Bob", "name": "Bob" }
+        ]
+        """);
+        var service = CreateService();
+
+        var result = await service.RemoveTipsterAsync(
+            "https://bet2invest.com/tipsters/performance-stats/Alice");
+
+        Assert.True(result);
+
+        var loaded = await service.LoadTipstersAsync();
+        Assert.Single(loaded);
+        Assert.Equal("Bob", loaded[0].Name);
+    }
+
+    [Fact]
+    public async Task RemoveTipsterAsync_UnknownUrl_ReturnsFalse()
+    {
+        WriteTipsters("""
+        [{ "url": "https://bet2invest.com/tipsters/performance-stats/Alice", "name": "Alice" }]
+        """);
+        var service = CreateService();
+
+        var result = await service.RemoveTipsterAsync(
+            "https://bet2invest.com/tipsters/performance-stats/Unknown");
+
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task RemoveTipsterAsync_WritesAtomically_TempFileCleanedUp()
+    {
+        WriteTipsters("""
+        [{ "url": "https://bet2invest.com/tipsters/performance-stats/Alice", "name": "Alice" }]
+        """);
+        var service = CreateService();
+        var filePath = Path.Combine(_tempDir, "tipsters.json");
+        var tempPath = filePath + ".tmp";
+
+        await service.RemoveTipsterAsync(
+            "https://bet2invest.com/tipsters/performance-stats/Alice");
+
+        Assert.False(File.Exists(tempPath));
+        Assert.True(File.Exists(filePath));
+    }
 }

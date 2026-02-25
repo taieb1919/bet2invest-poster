@@ -7,4 +7,5 @@ public interface IMessageFormatter
 {
     string FormatStatus(ExecutionState state);
     string FormatHistory(List<HistoryEntry> entries);
+    string FormatTipsters(List<TipsterConfig> tipsters);
 }
