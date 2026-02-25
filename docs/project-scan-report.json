@@ -1,0 +1,48 @@
+{
+  "workflow_version": "1.2.0",
+  "timestamps": {
+    "started": "2026-02-25T12:00:00Z",
+    "last_updated": "2026-02-25T12:05:00Z"
+  },
+  "mode": "initial_scan",
+  "scan_level": "quick",
+  "project_root": "/root/.openclaw/workspace/WORK/bet2invest-poster",
+  "project_knowledge": "/root/.openclaw/workspace/WORK/bet2invest-poster/docs",
+  "project_types": [
+    {
+      "part_id": "main",
+      "project_type_id": "backend",
+      "display_name": "Backend Worker Service (.NET 9)"
+    }
+  ],
+  "completed_steps": [
+    {"step": "step_0.5", "status": "completed", "timestamp": "2026-02-25T12:00:00Z", "summary": "Documentation requirements loaded for backend type"},
+    {"step": "step_1", "status": "completed", "timestamp": "2026-02-25T12:01:00Z", "summary": "Classified as monolith with 1 part: backend (.NET 9 Worker Service)"},
+    {"step": "step_2", "status": "completed", "timestamp": "2026-02-25T12:01:30Z", "summary": "Found 1 existing doc (README.md, minimal)"},
+    {"step": "step_3", "status": "completed", "timestamp": "2026-02-25T12:02:00Z", "summary": "Tech stack: .NET 9, C# 13, Telegram.Bot, Polly, Serilog, systemd"},
+    {"step": "step_4", "status": "completed", "timestamp": "2026-02-25T12:02:30Z", "summary": "Conditional analysis: 15 interfaces, 25 services, 8 command handlers, 6 models"},
+    {"step": "step_5", "status": "completed", "timestamp": "2026-02-25T12:03:00Z", "summary": "Source tree documented with annotations"},
+    {"step": "step_6", "status": "completed", "timestamp": "2026-02-25T12:03:30Z", "summary": "Dev setup and deployment documented"},
+    {"step": "step_8", "status": "completed", "timestamp": "2026-02-25T12:04:00Z", "summary": "Architecture doc written for 1 part"},
+    {"step": "step_9", "status": "completed", "timestamp": "2026-02-25T12:04:30Z", "summary": "All supporting docs written"},
+    {"step": "step_10", "status": "completed", "timestamp": "2026-02-25T12:05:00Z", "summary": "Master index generated"},
+    {"step": "step_11", "status": "completed", "timestamp": "2026-02-25T12:05:00Z", "summary": "Validation complete, all docs generated"}
+  ],
+  "current_step": "completed",
+  "findings": {
+    "project_classification": "Monolith backend Worker Service, .NET 9, C# 13",
+    "technology_stack": ".NET 9, Telegram.Bot 22.9.0, Polly.Core 8.6.5, Serilog 4.3.1, systemd",
+    "components": "15 interfaces, 25 services, 8 command handlers, 6 models, 318+ tests"
+  },
+  "outputs_generated": [
+    "project-scan-report.json",
+    "index.md",
+    "project-overview.md",
+    "architecture.md",
+    "source-tree-analysis.md",
+    "component-inventory.md",
+    "development-guide.md",
+    "deployment-guide.md"
+  ],
+  "resume_instructions": "Workflow completed successfully"
+}
