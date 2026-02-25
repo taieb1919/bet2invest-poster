@@ -1,5 +1,6 @@
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Tests.Helpers;
 using Bet2InvestPoster.Workers;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -70,22 +71,6 @@ public class SchedulerWorkerTests
     {
         public async Task ExecuteCycleWithRetryAsync(Func<CancellationToken, Task> cycleAction, CancellationToken ct = default)
             => await cycleAction(ct);
-    }
-
-    private class FakeNotificationService : INotificationService
-    {
-        public int FinalFailureCount { get; private set; }
-
-        public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default) => Task.CompletedTask;
-        public Task NotifyFailureAsync(string reason, CancellationToken ct = default) => Task.CompletedTask;
-        public Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default)
-            => Task.CompletedTask;
-
-        public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default)
-        {
-            FinalFailureCount++;
-            return Task.CompletedTask;
-        }
     }
 
     // ──────────────────────────────── Helpers ────────────────────────────────

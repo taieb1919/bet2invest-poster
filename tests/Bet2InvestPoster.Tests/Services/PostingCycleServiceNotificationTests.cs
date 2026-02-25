@@ -4,6 +4,7 @@ using Bet2InvestPoster.Services;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using Bet2InvestPoster.Tests.Helpers;
 using static Bet2InvestPoster.Tests.Services.PostingCycleServiceTests;
 
 namespace Bet2InvestPoster.Tests.Services;
@@ -207,6 +208,7 @@ public class PostingCycleServiceNotificationTests
         public Task NotifyFailureAsync(string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
+        public Task SendMessageAsync(string message, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class TrackingExecutionStateService : IExecutionStateService

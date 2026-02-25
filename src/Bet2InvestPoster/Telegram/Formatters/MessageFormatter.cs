@@ -56,6 +56,37 @@ public class MessageFormatter : IMessageFormatter
         return sb.ToString().TrimEnd();
     }
 
+    public string FormatOnboardingMessage(bool apiConnected, int tipsterCount, string scheduleTime)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("🚀 Bienvenue sur bet2invest-poster !");
+        sb.AppendLine();
+
+        if (apiConnected)
+            sb.AppendLine("📡 Connexion API bet2invest : ✅ Connecté");
+        else
+            sb.AppendLine("⚠️ Connexion API bet2invest échouée — vérifiez vos credentials.");
+
+        sb.AppendLine($"👥 Tipsters configurés : {tipsterCount}");
+        sb.AppendLine($"⏰ Publication planifiée : {scheduleTime}");
+        sb.AppendLine();
+        sb.AppendLine("📋 Commandes disponibles :");
+        sb.AppendLine("  /run — lancer une publication manuelle");
+        sb.AppendLine("  /status — état du système");
+        sb.AppendLine("  /start — activer le scheduling");
+        sb.AppendLine("  /stop — désactiver le scheduling");
+        sb.AppendLine("  /history — historique des publications");
+        sb.AppendLine("  /schedule — configurer l'horaire");
+        sb.AppendLine("  /tipsters — gérer les tipsters");
+        sb.AppendLine();
+        if (apiConnected)
+            sb.Append("💡 Envoyez /run pour tester une première publication, ou /status pour vérifier l'état.");
+        else
+            sb.Append("⚠️ Corrigez vos credentials avant d'utiliser /run.");
+
+        return sb.ToString();
+    }
+
     public string FormatStatus(ExecutionState state)
     {
         var lastRun = state.LastRunAt.HasValue

@@ -95,8 +95,8 @@ development_status:
   9-1-filtrage-par-cotes-et-plage-horaire: done
   epic-9-retrospective: optional
 
-  epic-10: backlog
-  10-1-onboarding-guide-via-telegram: backlog
+  epic-10: in-progress
+  10-1-onboarding-guide-via-telegram: review
   10-2-rotation-des-logs-et-retention-configurable: backlog
   10-3-resilience-polly-avancee-et-health-checks: backlog
   epic-10-retrospective: optional

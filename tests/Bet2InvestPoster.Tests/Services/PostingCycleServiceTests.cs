@@ -1,6 +1,7 @@
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Tests.Helpers;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -122,40 +123,6 @@ public class PostingCycleServiceTests
     }
 
     // ─── Fakes (notification + state) ────────────────────────────────────────
-
-    internal sealed class FakeNotificationService : INotificationService
-    {
-        public int SuccessCallCount { get; private set; }
-        public int FailureCallCount { get; private set; }
-        public int NoFilteredCandidatesCallCount { get; private set; }
-        public int? LastSuccessCount { get; private set; }
-        public string? LastFailureReason { get; private set; }
-        public string? LastFilterDetails { get; private set; }
-
-        public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default)
-        {
-            SuccessCallCount++;
-            LastSuccessCount = publishedCount;
-            return Task.CompletedTask;
-        }
-
-        public Task NotifyFailureAsync(string reason, CancellationToken ct = default)
-        {
-            FailureCallCount++;
-            LastFailureReason = reason;
-            return Task.CompletedTask;
-        }
-
-        public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default)
-            => Task.CompletedTask;
-
-        public Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default)
-        {
-            NoFilteredCandidatesCallCount++;
-            LastFilterDetails = filterDetails;
-            return Task.CompletedTask;
-        }
-    }
 
     internal sealed class FakeExecutionStateService : IExecutionStateService
     {
