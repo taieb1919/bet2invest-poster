@@ -295,6 +295,63 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
         }
     }
 
+    // ─── Free Tipsters Scraping (GET /tipsters, Pro == false) ──────
+
+    public async Task<List<ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
+    {
+        await EnsureAuthenticatedAsync(ct);
+
+        using (LogContext.PushProperty("Step", "Scrape"))
+        {
+            var freeTipsters = new List<ApiTipster>();
+            const int maxPages = 50;
+
+            for (var page = 0; page < maxPages; page++)
+            {
+                // Rate limiting: 500ms minimum entre requêtes paginées (NFR8)
+                await Task.Delay(_options.RequestDelayMs, ct);
+
+                var url = $"/tipsters?page={page}&mostBetSport=all&mostBetType=all&minBets=0&lastActivityMonths=12&orderBy=grade&orderDirection=DESC";
+                var response = await _http.GetAsync(url, ct);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorBody = await response.Content.ReadAsStringAsync(ct);
+                    throw new Bet2InvestApiException($"/tipsters?page={page}", (int)response.StatusCode, errorBody);
+                }
+
+                var data = await response.Content.ReadFromJsonAsync<TipstersResponse>(JsonOptions, ct);
+                if (data?.Tipsters == null || data.Tipsters.Count == 0) break;
+
+                var freeOnPage = data.Tipsters.Where(t => !t.Pro).ToList();
+                freeTipsters.AddRange(freeOnPage);
+
+                _logger.LogInformation(
+                    "Page {Page} : {Total} tipsters ({Free} free)",
+                    page, data.Tipsters.Count, freeOnPage.Count);
+
+                if (data.Pagination?.NextPage == null || data.Pagination.NextPage <= page) break;
+            }
+
+            var result = freeTipsters
+                .Select(t => new ScrapedTipster
+                {
+                    Username = t.Username,
+                    Roi = t.GeneralStatistics?.Roi ?? 0m,
+                    BetsNumber = t.GeneralStatistics?.BetsNumber ?? 0,
+                    MostBetSport = t.GeneralStatistics?.MostBetSport ?? string.Empty
+                })
+                .OrderByDescending(t => t.Roi)
+                .ToList();
+
+            _logger.LogInformation(
+                "Scraping terminé : {Count} tipsters free trouvés, triés par ROI descendant",
+                result.Count);
+
+            return result;
+        }
+    }
+
     // ─── Cleanup ───────────────────────────────────────────────────
 
     public void Dispose()
@@ -349,6 +406,27 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
 
         [JsonPropertyName("username")]
         public string Username { get; set; } = string.Empty;
+
+        [JsonPropertyName("pro")]
+        public bool Pro { get; set; }
+
+        [JsonPropertyName("tier")]
+        public string? Tier { get; set; }
+
+        [JsonPropertyName("generalStatistics")]
+        public ApiTipsterStatistics? GeneralStatistics { get; set; }
+    }
+
+    private class ApiTipsterStatistics
+    {
+        [JsonPropertyName("roi")]
+        public decimal Roi { get; set; }
+
+        [JsonPropertyName("betsNumber")]
+        public int BetsNumber { get; set; }
+
+        [JsonPropertyName("mostBetSport")]
+        public string MostBetSport { get; set; } = string.Empty;
     }
 
     private class ApiPagination

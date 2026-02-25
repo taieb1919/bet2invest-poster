@@ -1,4 +1,5 @@
 using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram.Commands;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,8 @@ public class TelegramBotService : BackgroundService
     private readonly AuthorizationFilter _authFilter;
     private readonly IEnumerable<ICommandHandler> _handlers;
     private readonly ITelegramBotClient _botClient;
+    private readonly IOnboardingService _onboardingService;
+    private readonly IConversationStateService _conversationState;
     private readonly ILogger<TelegramBotService> _logger;
     private volatile int _retryDelaySeconds = 1;
 
@@ -25,12 +28,16 @@ public class TelegramBotService : BackgroundService
         AuthorizationFilter authFilter,
         IEnumerable<ICommandHandler> handlers,
         ITelegramBotClient botClient,
+        IOnboardingService onboardingService,
+        IConversationStateService conversationState,
         ILogger<TelegramBotService> logger)
     {
         _options = options.Value;
         _authFilter = authFilter;
         _handlers = handlers;
         _botClient = botClient;
+        _onboardingService = onboardingService;
+        _conversationState = conversationState;
         _logger = logger;
     }
 
@@ -52,6 +59,18 @@ public class TelegramBotService : BackgroundService
             _logger.LogInformation("Bot Telegram démarré — polling actif");
         }
 
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _onboardingService.TrySendOnboardingAsync(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Onboarding échoué — non bloquant");
+            }
+        }, stoppingToken);
+
         try
         {
             await Task.Delay(Timeout.Infinite, stoppingToken);
@@ -71,12 +90,29 @@ public class TelegramBotService : BackgroundService
             return;
 
         var text = update.Message?.Text ?? string.Empty;
-        var command = text.Split(' ')[0].ToLowerInvariant();
 
         using (LogContext.PushProperty("Step", "Notify"))
         {
-            _logger.LogInformation("Message reçu — commande: {Command}", command);
+            _logger.LogInformation("Message reçu — texte: {Text}", text);
         }
+
+        // Si un état de conversation est en attente pour ce chat, le router en priorité
+        if (_conversationState.TryGet(chatId, out var pendingCallback) && pendingCallback is not null)
+        {
+            _conversationState.Clear(chatId);
+            try
+            {
+                await pendingCallback(bot, text, ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors du traitement de la réponse conversation");
+                await bot.SendMessage(chatId, "❌ Erreur lors du traitement de votre réponse.", cancellationToken: ct);
+            }
+            return;
+        }
+
+        var command = text.Split(' ')[0].ToLowerInvariant();
 
         var handler = _handlers.FirstOrDefault(h => h.CanHandle(command));
         if (handler is not null)
