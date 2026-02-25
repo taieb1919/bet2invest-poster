@@ -56,4 +56,15 @@ public class NotificationService : INotificationService
             await _botClient.SendMessage(_chatId, text, cancellationToken: ct);
         }
     }
+
+    public async Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default)
+    {
+        var text = $"⚠️ Aucun pronostic ne correspond aux critères de filtrage ({filterDetails}).";
+
+        using (LogContext.PushProperty("Step", "Notify"))
+        {
+            _logger.LogWarning("Envoi notification filtrage vide — {FilterDetails}", filterDetails);
+            await _botClient.SendMessage(_chatId, text, cancellationToken: ct);
+        }
+    }
 }

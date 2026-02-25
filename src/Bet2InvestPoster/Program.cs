@@ -143,6 +143,16 @@ if (!int.TryParse(posterOpts.BankrollId, out _))
     throw new InvalidOperationException(
         $"Poster:BankrollId doit être un entier valide (valeur actuelle : '{posterOpts.BankrollId}')");
 
+// Validation des filtres avancés — log warnings si configuration incohérente
+if (posterOpts.MinOdds.HasValue && posterOpts.MinOdds.Value <= 0)
+    Log.Warning("Configuration: Poster:MinOdds ({MinOdds}) est <= 0 — aucun pari ne sera sélectionné", posterOpts.MinOdds);
+if (posterOpts.MaxOdds.HasValue && posterOpts.MaxOdds.Value <= 0)
+    Log.Warning("Configuration: Poster:MaxOdds ({MaxOdds}) est <= 0 — aucun pari ne sera sélectionné", posterOpts.MaxOdds);
+if (posterOpts.MinOdds.HasValue && posterOpts.MaxOdds.HasValue && posterOpts.MinOdds > posterOpts.MaxOdds)
+    Log.Warning("Configuration: Poster:MinOdds ({MinOdds}) > Poster:MaxOdds ({MaxOdds}) — aucun pari ne correspondra aux filtres", posterOpts.MinOdds, posterOpts.MaxOdds);
+if (posterOpts.EventHorizonHours.HasValue && posterOpts.EventHorizonHours.Value <= 0)
+    Log.Warning("Configuration: Poster:EventHorizonHours ({EventHorizonHours}) est <= 0 — tous les paris seront exclus", posterOpts.EventHorizonHours);
+
 // NFR8 : délai minimum 500ms entre requêtes API (rate limiting)
 if (b2iOpts.RequestDelayMs < 500)
     throw new InvalidOperationException(

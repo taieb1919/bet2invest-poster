@@ -127,8 +127,10 @@ public class PostingCycleServiceTests
     {
         public int SuccessCallCount { get; private set; }
         public int FailureCallCount { get; private set; }
+        public int NoFilteredCandidatesCallCount { get; private set; }
         public int? LastSuccessCount { get; private set; }
         public string? LastFailureReason { get; private set; }
+        public string? LastFilterDetails { get; private set; }
 
         public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default)
         {
@@ -146,6 +148,13 @@ public class PostingCycleServiceTests
 
         public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default)
             => Task.CompletedTask;
+
+        public Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default)
+        {
+            NoFilteredCandidatesCallCount++;
+            LastFilterDetails = filterDetails;
+            return Task.CompletedTask;
+        }
     }
 
     internal sealed class FakeExecutionStateService : IExecutionStateService
@@ -175,7 +184,8 @@ public class PostingCycleServiceTests
         FakeBetSelector?         selector     = null,
         FakeBetPublisher?        publisher    = null,
         FakeNotificationService? notification = null,
-        FakeExecutionStateService? state      = null)
+        FakeExecutionStateService? state      = null,
+        PosterOptions?           options      = null)
         => new PostingCycleService(
             new FakeExtendedClient(),
             history      ?? new FakeHistoryManager(),
@@ -185,6 +195,7 @@ public class PostingCycleServiceTests
             publisher    ?? new FakeBetPublisher(),
             notification ?? new FakeNotificationService(),
             state        ?? new FakeExecutionStateService(),
+            Options.Create(options ?? new PosterOptions()),
             NullLogger<PostingCycleService>.Instance);
 
     // ─── Tests ────────────────────────────────────────────────────────────────
@@ -242,6 +253,40 @@ public class PostingCycleServiceTests
         Assert.Equal(2, publisher.LastSelected.Count);
         Assert.Contains(publisher.LastSelected, b => b.Id == 10);
         Assert.Contains(publisher.LastSelected, b => b.Id == 20);
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_WhenZeroCandidatesWithActiveFilters_NotifiesAndReturns()
+    {
+        // Arrange : BetSelector retourne liste vide + filtre actif (MinOdds configuré)
+        var selector     = new FakeBetSelector { SelectionToReturn = [] };
+        var fetcher      = new FakeUpcomingBetsFetcher { BetsToReturn = [new PendingBet { Id = 1 }] };
+        var publisher    = new FakeBetPublisher();
+        var notification = new FakeNotificationService();
+        var state        = new FakeExecutionStateService();
+        var options      = new PosterOptions { MinOdds = 5.00m };
+
+        var service = CreateService(
+            selector: selector,
+            fetcher: fetcher,
+            publisher: publisher,
+            notification: notification,
+            state: state,
+            options: options);
+
+        // Act
+        await service.RunCycleAsync();
+
+        // Assert : notification "aucun candidat filtré" envoyée
+        Assert.Equal(1, notification.NoFilteredCandidatesCallCount);
+        Assert.NotNull(notification.LastFilterDetails);
+        Assert.Contains("5", notification.LastFilterDetails); // contient la valeur MinOdds
+
+        // Assert : PublishAllAsync NON appelé
+        Assert.Equal(0, publisher.CallCount);
+
+        // Assert : RecordSuccess NON appelé (cycle s'est arrêté avant)
+        Assert.False(state.RecordSuccessCalled);
     }
 
     [Fact]

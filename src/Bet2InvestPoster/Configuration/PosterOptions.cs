@@ -10,4 +10,8 @@ public class PosterOptions
     public string DataPath { get; set; } = ".";
     public string LogPath { get; set; } = "logs";
     public string BankrollId { get; set; } = "";
+
+    public decimal? MinOdds { get; set; }      // null = pas de filtrage
+    public decimal? MaxOdds { get; set; }      // null = pas de filtrage
+    public int? EventHorizonHours { get; set; } // null = pas de filtrage
 }

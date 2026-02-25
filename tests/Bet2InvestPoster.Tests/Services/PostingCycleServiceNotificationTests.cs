@@ -1,7 +1,9 @@
+using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using static Bet2InvestPoster.Tests.Services.PostingCycleServiceTests;
 
 namespace Bet2InvestPoster.Tests.Services;
@@ -91,6 +93,7 @@ public class PostingCycleServiceNotificationTests
             publisher,
             notification,
             state,
+            Options.Create(new PosterOptions()),
             NullLogger<PostingCycleService>.Instance);
 
         return (service, notification, state, publisher);
@@ -138,6 +141,7 @@ public class PostingCycleServiceNotificationTests
             new ThrowingBetPublisher { PublishedCount = 1 },
             trackingNotification,
             trackingState,
+            Options.Create(new PosterOptions()),
             NullLogger<PostingCycleService>.Instance);
 
         await service.RunCycleAsync();
@@ -202,6 +206,7 @@ public class PostingCycleServiceNotificationTests
         public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyFailureAsync(string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
+        public Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
     }
 
     private sealed class TrackingExecutionStateService : IExecutionStateService

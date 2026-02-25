@@ -8,4 +8,7 @@ public interface INotificationService
 
     // FR18 — notification après épuisement de toutes les tentatives Polly
     Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default);
+
+    // FR36 — notification quand zéro candidats après filtrage avancé
+    Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default);
 }

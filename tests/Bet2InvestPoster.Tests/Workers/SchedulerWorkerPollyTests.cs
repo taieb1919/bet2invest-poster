@@ -43,6 +43,7 @@ public class SchedulerWorkerPollyTests
 
         public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default) => Task.CompletedTask;
         public Task NotifyFailureAsync(string reason, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default) => Task.CompletedTask;
         public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default)
         {
             FinalFailureCount++;
