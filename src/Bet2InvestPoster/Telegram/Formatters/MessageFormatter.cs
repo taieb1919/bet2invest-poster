@@ -36,6 +36,26 @@ public class MessageFormatter : IMessageFormatter
         return sb.ToString().TrimEnd();
     }
 
+    public string FormatTipsters(List<TipsterConfig> tipsters)
+    {
+        if (tipsters.Count == 0)
+            return "📭 Aucun tipster configuré. Utilisez /tipsters add <lien> pour en ajouter.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("📋 Tipsters configurés");
+        sb.AppendLine();
+
+        for (var i = 0; i < tipsters.Count; i++)
+        {
+            sb.AppendLine($"{i + 1}. {tipsters[i].Name} — {tipsters[i].Url} (free)");
+        }
+
+        sb.AppendLine();
+        sb.Append($"Total : {tipsters.Count} tipster{(tipsters.Count > 1 ? "s" : "")}");
+
+        return sb.ToString().TrimEnd();
+    }
+
     public string FormatStatus(ExecutionState state)
     {
         var lastRun = state.LastRunAt.HasValue
