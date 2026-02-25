@@ -114,6 +114,9 @@ public class TelegramBotService : BackgroundService
 
         var command = text.Split(' ')[0].ToLowerInvariant();
 
+        if (!command.StartsWith('/'))
+            return;
+
         var handler = _handlers.FirstOrDefault(h => h.CanHandle(command));
         if (handler is not null)
         {
@@ -122,7 +125,7 @@ public class TelegramBotService : BackgroundService
         else
         {
             await bot.SendMessage(chatId,
-                "Commande inconnue. Commandes disponibles : /run, /status, /start, /stop, /history, /schedule, /tipsters",
+                "Commande inconnue. Tapez /help pour la liste des commandes.",
                 cancellationToken: ct);
         }
     }

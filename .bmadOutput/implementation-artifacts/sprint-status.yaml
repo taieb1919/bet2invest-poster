@@ -128,7 +128,7 @@ development_status:
   14-1-scheduling-multi-horaires-configurable: done
   epic-14-retrospective: optional
 
-  epic-15: backlog
-  15-1-commande-help-liste-des-commandes-disponibles: backlog
+  epic-15: in-progress
+  15-1-commande-help-liste-des-commandes-disponibles: done
   15-2-enregistrement-commandes-via-setmycommands: backlog
   epic-15-retrospective: optional

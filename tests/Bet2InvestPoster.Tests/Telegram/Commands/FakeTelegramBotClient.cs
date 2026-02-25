@@ -11,6 +11,7 @@ internal class FakeTelegramBotClient : ITelegramBotClient
 {
     public List<string> SentMessages { get; } = [];
     public List<long> SentChatIds { get; } = [];
+    public List<global::Telegram.Bot.Types.Enums.ParseMode?> SentParseModes { get; } = [];
 
     public long BotId => 1234567890;
     public bool LocalBotServer => false;
@@ -30,9 +31,12 @@ internal class FakeTelegramBotClient : ITelegramBotClient
         {
             SentMessages.Add(sendReq.Text);
             SentChatIds.Add(sendReq.ChatId.Identifier ?? 0);
+            SentParseModes.Add(sendReq.ParseMode);
         }
 
-        // Return default(TResponse) to avoid reliance on parameterless constructors
+        if (typeof(TResponse) == typeof(global::Telegram.Bot.Types.Message))
+            return (Task<TResponse>)(object)Task.FromResult(new global::Telegram.Bot.Types.Message());
+
         return Task.FromResult(default(TResponse)!);
 
     }

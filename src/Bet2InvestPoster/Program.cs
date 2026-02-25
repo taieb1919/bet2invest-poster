@@ -124,7 +124,7 @@ builder.Services.AddSingleton<IConversationStateService, ConversationStateServic
 // OnboardingService: Singleton — sends onboarding message on first launch.
 builder.Services.AddSingleton<IOnboardingService, OnboardingService>();
 
-// Command handlers: Singleton — /run, /status, /start, /stop, /history, /schedule dispatch.
+// Command handlers: Singleton — dispatch des commandes Telegram.
 builder.Services.AddSingleton<ICommandHandler, RunCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, StatusCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, StartCommandHandler>();
@@ -133,6 +133,7 @@ builder.Services.AddSingleton<ICommandHandler, HistoryCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, ScheduleCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, TipstersCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, ReportCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, HelpCommandHandler>();
 
 // TelegramBotService: HostedService — bot long polling running in background.
 builder.Services.AddHostedService<TelegramBotService>();
