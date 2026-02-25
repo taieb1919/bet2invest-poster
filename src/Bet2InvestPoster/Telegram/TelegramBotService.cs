@@ -71,6 +71,37 @@ public class TelegramBotService : BackgroundService
             }
         }, stoppingToken);
 
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var commands = new BotCommand[]
+                {
+                    new() { Command = "run",      Description = "Exécuter un cycle de publication" },
+                    new() { Command = "status",   Description = "Afficher l'état du système" },
+                    new() { Command = "start",    Description = "Activer le scheduling automatique" },
+                    new() { Command = "stop",     Description = "Suspendre le scheduling automatique" },
+                    new() { Command = "history",  Description = "Historique des publications récentes" },
+                    new() { Command = "schedule", Description = "Configurer les horaires d'exécution [HH:mm,...]" },
+                    new() { Command = "tipsters", Description = "Gérer la liste des tipsters" },
+                    new() { Command = "report",   Description = "Tableau de bord des performances [jours]" },
+                    new() { Command = "help",     Description = "Afficher cette aide" },
+                };
+                await _botClient.SetMyCommands(commands: commands, cancellationToken: stoppingToken);
+                using (LogContext.PushProperty("Step", "Notify"))
+                {
+                    _logger.LogInformation("Commandes du bot enregistrées via setMyCommands ({Count} commandes)", commands.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                using (LogContext.PushProperty("Step", "Notify"))
+                {
+                    _logger.LogWarning(ex, "Échec de l'enregistrement des commandes Telegram");
+                }
+            }
+        }, stoppingToken);
+
         try
         {
             await Task.Delay(Timeout.Infinite, stoppingToken);

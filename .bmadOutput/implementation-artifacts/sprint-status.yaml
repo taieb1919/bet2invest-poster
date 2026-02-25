@@ -130,5 +130,5 @@ development_status:
 
   epic-15: in-progress
   15-1-commande-help-liste-des-commandes-disponibles: done
-  15-2-enregistrement-commandes-via-setmycommands: backlog
+  15-2-enregistrement-commandes-via-setmycommands: done
   epic-15-retrospective: optional
