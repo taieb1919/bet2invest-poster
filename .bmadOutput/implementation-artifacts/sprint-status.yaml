@@ -97,7 +97,7 @@ development_status:
 
   epic-10: in-progress
   10-1-onboarding-guide-via-telegram: review
-  10-2-rotation-des-logs-et-retention-configurable: backlog
+  10-2-rotation-des-logs-et-retention-configurable: done
   10-3-resilience-polly-avancee-et-health-checks: backlog
   epic-10-retrospective: optional
 

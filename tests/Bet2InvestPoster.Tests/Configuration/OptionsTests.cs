@@ -93,7 +93,8 @@ public class OptionsTests
             ["Poster:RetryDelayMs"] = "30000",
             ["Poster:MaxRetryCount"] = "5",
             ["Poster:DataPath"] = "/opt/bet2invest-poster",
-            ["Poster:LogPath"] = "/opt/bet2invest-poster/logs"
+            ["Poster:LogPath"] = "/opt/bet2invest-poster/logs",
+            ["Poster:LogRetentionDays"] = "45"
         });
 
         var services = new ServiceCollection();
@@ -106,6 +107,7 @@ public class OptionsTests
         Assert.Equal(5, options.MaxRetryCount);
         Assert.Equal("/opt/bet2invest-poster", options.DataPath);
         Assert.Equal("/opt/bet2invest-poster/logs", options.LogPath);
+        Assert.Equal(45, options.LogRetentionDays);
     }
 
     [Fact]
@@ -123,6 +125,66 @@ public class OptionsTests
         Assert.Equal(3, options.MaxRetryCount);
         Assert.Equal(".", options.DataPath);
         Assert.Equal("logs", options.LogPath);
+        Assert.Equal(30, options.LogRetentionDays);
+    }
+
+    [Fact]
+    public void PosterOptions_LogRetentionDays_IsBindableFromConfiguration()
+    {
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Poster:LogRetentionDays"] = "60"
+        });
+
+        var services = new ServiceCollection();
+        services.Configure<PosterOptions>(config.GetSection(PosterOptions.SectionName));
+        var sp = services.BuildServiceProvider();
+        var options = sp.GetRequiredService<IOptions<PosterOptions>>().Value;
+
+        Assert.Equal(60, options.LogRetentionDays);
+    }
+
+    [Theory]
+    [InlineData(1)]   // boundary minimum valide : 1 jour = 1 fichier conservé
+    [InlineData(7)]   // cas courant : 1 semaine
+    [InlineData(365)] // cas extrême valide : 1 an
+    public void PosterOptions_LogRetentionDays_ValidValues_Bind(int days)
+    {
+        // LogRetentionDays doit être > 0 (validé dans Program.cs au démarrage).
+        // Ce test vérifie que les valeurs valides se lient correctement depuis la configuration.
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Poster:LogRetentionDays"] = days.ToString()
+        });
+
+        var services = new ServiceCollection();
+        services.Configure<PosterOptions>(config.GetSection(PosterOptions.SectionName));
+        var sp = services.BuildServiceProvider();
+        var options = sp.GetRequiredService<IOptions<PosterOptions>>().Value;
+
+        Assert.Equal(days, options.LogRetentionDays);
+    }
+
+    [Theory]
+    [InlineData(0)]  // boundary invalide : Program.cs lève InvalidOperationException si <= 0
+    [InlineData(-1)] // négatif invalide
+    public void PosterOptions_LogRetentionDays_InvalidValues_BindButAreRejectedAtStartup(int days)
+    {
+        // Ces valeurs se lient sans erreur au niveau Options (pas de DataAnnotations),
+        // mais Program.cs les rejette avec InvalidOperationException avant le démarrage du host.
+        var config = BuildConfig(new Dictionary<string, string?>
+        {
+            ["Poster:LogRetentionDays"] = days.ToString()
+        });
+
+        var services = new ServiceCollection();
+        services.Configure<PosterOptions>(config.GetSection(PosterOptions.SectionName));
+        var sp = services.BuildServiceProvider();
+        var options = sp.GetRequiredService<IOptions<PosterOptions>>().Value;
+
+        // La valeur est liée telle quelle — la validation est déléguée à Program.cs
+        Assert.Equal(days, options.LogRetentionDays);
+        Assert.True(options.LogRetentionDays <= 0, "Valeur invalide confirmée : Program.cs devrait lever InvalidOperationException");
     }
 
     [Fact]

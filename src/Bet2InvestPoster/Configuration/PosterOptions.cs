@@ -11,6 +11,13 @@ public class PosterOptions
     public string LogPath { get; set; } = "logs";
     public string BankrollId { get; set; } = "";
 
+    /// <summary>
+    /// Nombre de fichiers de log à conserver. Correspond à <c>retainedFileCountLimit</c> de Serilog,
+    /// utilisé conjointement avec <c>RollingInterval.Day</c> (1 fichier = 1 jour).
+    /// Doit être > 0 ; la valeur 0 provoque une <see cref="InvalidOperationException"/> au démarrage.
+    /// </summary>
+    public int LogRetentionDays { get; set; } = 30;
+
     public decimal? MinOdds { get; set; }      // null = pas de filtrage
     public decimal? MaxOdds { get; set; }      // null = pas de filtrage
     public int? EventHorizonHours { get; set; } // null = pas de filtrage
