@@ -13,17 +13,20 @@ public class BetPublisher : IBetPublisher
     private readonly IHistoryManager _historyManager;
     private readonly PosterOptions _options;
     private readonly ILogger<BetPublisher> _logger;
+    private readonly TimeProvider _timeProvider;
 
     public BetPublisher(
         IExtendedBet2InvestClient client,
         IHistoryManager historyManager,
         IOptions<PosterOptions> options,
-        ILogger<BetPublisher> logger)
+        ILogger<BetPublisher> logger,
+        TimeProvider? timeProvider = null)
     {
         _client = client;
         _historyManager = historyManager;
         _options = options.Value;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public async Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default)
@@ -108,9 +111,12 @@ public class BetPublisher : IBetPublisher
                     MatchupId        = bet.Market.MatchupId,
                     MarketKey        = bet.Market.Key,
                     Designation      = designation,
-                    PublishedAt      = DateTime.UtcNow,
+                    PublishedAt      = _timeProvider.GetUtcNow().UtcDateTime,
                     MatchDescription = description,
-                    TipsterUrl       = null
+                    TipsterUrl       = null,
+                    Odds             = bet.Price > 0 ? (decimal?)bet.Price : null,
+                    Sport            = bet.Sport?.Name,
+                    TipsterName      = bet.TipsterUsername
                 }, ct);
 
                 published++;
