@@ -21,4 +21,11 @@ public class PosterOptions
     public decimal? MinOdds { get; set; }      // null = pas de filtrage
     public decimal? MaxOdds { get; set; }      // null = pas de filtrage
     public int? EventHorizonHours { get; set; } // null = pas de filtrage
+
+    /// <summary>Mode de sélection des pronostics : "random" (défaut) ou "intelligent" (scoring multi-critères).</summary>
+    public string SelectionMode { get; set; } = "random";
+
+    public int CircuitBreakerFailureThreshold { get; set; } = 3;
+    public int CircuitBreakerDurationSeconds { get; set; } = 300;
+    public int HealthCheckPort { get; set; } = 8080;
 }

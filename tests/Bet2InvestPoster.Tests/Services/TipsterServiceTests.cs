@@ -315,4 +315,61 @@ public class TipsterServiceTests : IDisposable
         Assert.False(File.Exists(tempPath));
         Assert.True(File.Exists(filePath));
     }
+
+    // --- Task 7.4 : ReplaceTipstersAsync ---
+
+    [Fact]
+    public async Task ReplaceTipstersAsync_WritesNewListAtomically()
+    {
+        WriteTipsters("""
+        [{ "url": "https://bet2invest.com/tipsters/performance-stats/Old", "name": "Old" }]
+        """);
+
+        var newTipsters = new List<TipsterConfig>
+        {
+            new() { Url = "https://bet2invest.com/tipsters/performance-stats/New1", Name = "New1" },
+            new() { Url = "https://bet2invest.com/tipsters/performance-stats/New2", Name = "New2" }
+        };
+
+        var service = CreateService();
+        await service.ReplaceTipstersAsync(newTipsters);
+
+        var loaded = await service.LoadTipstersAsync();
+        Assert.Equal(2, loaded.Count);
+        Assert.Equal("New1", loaded[0].Name);
+        Assert.Equal("New2", loaded[1].Name);
+    }
+
+    [Fact]
+    public async Task ReplaceTipstersAsync_EmptyList_WritesEmptyFile()
+    {
+        WriteTipsters("""
+        [{ "url": "https://bet2invest.com/tipsters/performance-stats/Alice", "name": "Alice" }]
+        """);
+
+        var service = CreateService();
+        await service.ReplaceTipstersAsync([]);
+
+        var filePath = Path.Combine(_tempDir, "tipsters.json");
+        var json = await File.ReadAllTextAsync(filePath);
+        var parsed = JsonSerializer.Deserialize<List<TipsterConfig>>(json);
+        Assert.NotNull(parsed);
+        Assert.Empty(parsed!);
+    }
+
+    [Fact]
+    public async Task ReplaceTipstersAsync_LeavesNoTempFile()
+    {
+        WriteTipsters("[]");
+        var service = CreateService();
+        var filePath = Path.Combine(_tempDir, "tipsters.json");
+        var tempPath = filePath + ".tmp";
+
+        await service.ReplaceTipstersAsync([
+            new TipsterConfig { Url = "https://bet2invest.com/tipsters/performance-stats/T1", Name = "T1" }
+        ]);
+
+        Assert.False(File.Exists(tempPath));
+        Assert.True(File.Exists(filePath));
+    }
 }

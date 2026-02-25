@@ -11,4 +11,7 @@ public interface INotificationService
 
     // FR36 — notification quand zéro candidats après filtrage avancé
     Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default);
+
+    // Story 10.1 — envoi d'un message générique (utilisé par l'onboarding)
+    Task SendMessageAsync(string message, CancellationToken ct = default);
 }

@@ -27,6 +27,10 @@ public class OnboardingServiceTests
         public Task PurgeOldEntriesAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default) =>
             Task.FromResult(new List<HistoryEntry>());
+        public Task UpdateEntriesAsync(List<HistoryEntry> updatedEntries, CancellationToken ct = default) =>
+            Task.CompletedTask;
+        public Task<List<HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default) =>
+            Task.FromResult(new List<HistoryEntry>());
     }
 
     private class FakeExecutionStateService : IExecutionStateService
@@ -66,6 +70,9 @@ public class OnboardingServiceTests
         public string FormatStatus(ExecutionState state) => "";
         public string FormatHistory(List<HistoryEntry> entries) => "";
         public string FormatTipsters(List<TipsterConfig> tipsters) => "";
+        public string FormatScrapedTipsters(List<ScrapedTipster> tipsters) => "";
+        public string FormatScrapedTipstersConfirmation() => "";
+        public string FormatReport(List<HistoryEntry> entries, int days) => "";
     }
 
     private class FakeTipsterService : ITipsterService
@@ -89,6 +96,8 @@ public class OnboardingServiceTests
 
         public Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default) =>
             Task.FromResult(true);
+        public Task ReplaceTipstersAsync(List<TipsterConfig> tipsters, CancellationToken ct = default) =>
+            Task.CompletedTask;
     }
 
     private class FakeExtendedBet2InvestClient : IExtendedBet2InvestClient
@@ -110,6 +119,10 @@ public class OnboardingServiceTests
 
         public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default) =>
             Task.FromResult<string?>(null);
+        public Task<List<ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default) =>
+            Task.FromResult(new List<ScrapedTipster>());
+        public Task<List<JTDev.Bet2InvestScraper.Models.SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default) =>
+            Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
     }
 
     // --- Helpers ---

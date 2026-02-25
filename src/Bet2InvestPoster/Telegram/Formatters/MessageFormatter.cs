@@ -76,6 +76,7 @@ public class MessageFormatter : IMessageFormatter
         sb.AppendLine("  /start — activer le scheduling");
         sb.AppendLine("  /stop — désactiver le scheduling");
         sb.AppendLine("  /history — historique des publications");
+        sb.AppendLine("  /report — rapport de performances");
         sb.AppendLine("  /schedule — configurer l'horaire");
         sb.AppendLine("  /tipsters — gérer les tipsters");
         sb.AppendLine();
@@ -85,6 +86,115 @@ public class MessageFormatter : IMessageFormatter
             sb.Append("⚠️ Corrigez vos credentials avant d'utiliser /run.");
 
         return sb.ToString();
+    }
+
+    public string FormatScrapedTipsters(List<ScrapedTipster> tipsters)
+    {
+        if (tipsters.Count == 0)
+            return "📭 Aucun tipster gratuit trouvé sur bet2invest.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"🔍 {tipsters.Count} tipsters free trouvés (triés par ROI)");
+        sb.AppendLine();
+
+        for (var i = 0; i < tipsters.Count; i++)
+        {
+            var t = tipsters[i];
+            var roi = t.Roi >= 0 ? $"+{t.Roi:F1}%" : $"{t.Roi:F1}%";
+            sb.AppendLine($"{i + 1}. {t.Username} — ROI: {roi} | {t.BetsNumber} paris | {t.MostBetSport}");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    public string FormatScrapedTipstersConfirmation()
+        => "Voulez-vous remplacer votre liste actuelle ?\n[Oui / Non / Fusionner]";
+
+    public string FormatReport(List<HistoryEntry> entries, int days)
+    {
+        var resolved = entries.Where(e => e.Result is "won" or "lost").ToList();
+
+        if (resolved.Count == 0)
+            return "📊 Aucun pronostic résolu sur cette période. Les résultats sont vérifiés quotidiennement.";
+
+        var won = resolved.Where(e => e.Result == "won").ToList();
+        var pending = entries.Where(e => e.Result is "pending" or null).ToList();
+
+        var winRate = (double)won.Count / resolved.Count * 100;
+
+        var totalStake = (double)resolved.Count;
+        var totalReturn = won.Sum(e => (double)(e.Odds ?? 0m));
+        var roi = totalStake > 0 ? (totalReturn - totalStake) / totalStake * 100 : 0;
+
+        var avgOdds = resolved.Count > 0 ? resolved.Average(e => (double)(e.Odds ?? 0m)) : 0;
+
+        var sb = new StringBuilder();
+        sb.AppendLine($"📊 Rapport — {days} jour{(days > 1 ? "s" : "")}");
+        sb.AppendLine();
+        sb.AppendLine("📋 Résumé");
+        sb.AppendLine($"• Pronostics publiés : {entries.Count}");
+        sb.AppendLine($"• Résultats disponibles : {resolved.Count} / {entries.Count}");
+        sb.AppendLine($"• En attente : {pending.Count}");
+        sb.AppendLine();
+        sb.AppendLine("📈 Performances");
+        sb.AppendLine($"• Taux de réussite : {winRate:F1}% ({won.Count}/{resolved.Count})");
+        var roiStr = roi >= 0 ? $"+{roi:F1}%" : $"{roi:F1}%";
+        sb.AppendLine($"• ROI : {roiStr}");
+        sb.AppendLine($"• Cote moyenne : {avgOdds:F2}");
+
+        // Répartition par sport
+        var bySport = entries
+            .GroupBy(e => e.Sport ?? "Inconnu")
+            .Select(g => new
+            {
+                Sport = g.Key,
+                Won = g.Count(e => e.Result == "won"),
+                Lost = g.Count(e => e.Result == "lost"),
+                Pending = g.Count(e => e.Result is "pending" or null),
+                Total = g.Count(e => e.Result is "won" or "lost")
+            })
+            .OrderByDescending(s => s.Won + s.Lost)
+            .ToList();
+
+        if (bySport.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("⚽ Par sport");
+            foreach (var s in bySport)
+            {
+                var sr = s.Total > 0 ? $" ({(double)s.Won / s.Total * 100:F1}%)" : "";
+                sb.AppendLine($"• {s.Sport} : {s.Won} ✅ {s.Lost} ❌ {s.Pending}{sr}");
+            }
+        }
+
+        // Top 3 tipsters
+        var topTipsters = resolved
+            .GroupBy(e => e.TipsterName ?? "Inconnu")
+            .Select(g => new
+            {
+                Name = g.Key,
+                WinRate = (double)g.Count(e => e.Result == "won") / g.Count() * 100,
+                Won = g.Count(e => e.Result == "won"),
+                Count = g.Count()
+            })
+            .Where(t => t.Count >= 2)
+            .OrderByDescending(t => t.WinRate)
+            .ThenByDescending(t => t.Count)
+            .Take(3)
+            .ToList();
+
+        if (topTipsters.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("🏆 Top tipsters");
+            for (var i = 0; i < topTipsters.Count; i++)
+            {
+                var t = topTipsters[i];
+                sb.AppendLine($"{i + 1}. {t.Name} — {t.WinRate:F1}% ({t.Won}/{t.Count})");
+            }
+        }
+
+        return sb.ToString().TrimEnd();
     }
 
     public string FormatStatus(ExecutionState state)

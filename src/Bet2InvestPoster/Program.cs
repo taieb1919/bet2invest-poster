@@ -84,6 +84,9 @@ builder.Services.AddScoped<IBetSelector, BetSelector>();
 // BetPublisher: Scoped — publishes selected bets via API and records them in history.
 builder.Services.AddScoped<IBetPublisher, BetPublisher>();
 
+// ResultTracker: Scoped — vérifie les résultats des pronostics publiés une fois par cycle.
+builder.Services.AddScoped<IResultTracker, ResultTracker>();
+
 // PostingCycleService: Scoped — orchestrates the full posting cycle per execution.
 builder.Services.AddScoped<IPostingCycleService, PostingCycleService>();
 
@@ -115,6 +118,9 @@ builder.Services.AddSingleton<IExecutionStateService>(sp =>
 // MessageFormatter: Singleton — formats Telegram status messages.
 builder.Services.AddSingleton<IMessageFormatter, MessageFormatter>();
 
+// ConversationStateService: Singleton — état de conversation partagé entre tous les scopes.
+builder.Services.AddSingleton<IConversationStateService, ConversationStateService>();
+
 // OnboardingService: Singleton — sends onboarding message on first launch.
 builder.Services.AddSingleton<IOnboardingService, OnboardingService>();
 
@@ -126,6 +132,7 @@ builder.Services.AddSingleton<ICommandHandler, StopCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, HistoryCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, ScheduleCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, TipstersCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, ReportCommandHandler>();
 
 // TelegramBotService: HostedService — bot long polling running in background.
 builder.Services.AddHostedService<TelegramBotService>();

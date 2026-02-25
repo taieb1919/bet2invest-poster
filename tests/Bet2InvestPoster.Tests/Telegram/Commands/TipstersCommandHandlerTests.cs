@@ -88,6 +88,8 @@ public class TipstersCommandHandlerTests
             if (ThrowOnScrape) throw new Exception(ThrowMessage);
             return Task.FromResult(TipstersToReturn);
         }
+        public Task<List<JTDev.Bet2InvestScraper.Models.SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
+            => Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
     }
 
     // --- Fake IConversationStateService ---

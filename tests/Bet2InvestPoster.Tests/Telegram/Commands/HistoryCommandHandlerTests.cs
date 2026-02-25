@@ -31,6 +31,10 @@ public class HistoryCommandHandlerTests
 
         public Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default) =>
             Task.FromResult(_entries.OrderByDescending(e => e.PublishedAt).Take(count).ToList());
+        public Task UpdateEntriesAsync(List<HistoryEntry> updatedEntries, CancellationToken ct = default) =>
+            Task.CompletedTask;
+        public Task<List<HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default) =>
+            Task.FromResult(new List<HistoryEntry>());
     }
 
     private static Message MakeMessage(string text = "/history") =>

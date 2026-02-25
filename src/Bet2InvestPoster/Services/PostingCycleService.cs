@@ -15,6 +15,7 @@ public class PostingCycleService : IPostingCycleService
     private readonly IBetPublisher _betPublisher;
     private readonly INotificationService _notificationService;
     private readonly IExecutionStateService _executionStateService;
+    private readonly IResultTracker _resultTracker;
     private readonly PosterOptions _options;
     private readonly ILogger<PostingCycleService> _logger;
 
@@ -27,6 +28,7 @@ public class PostingCycleService : IPostingCycleService
         IBetPublisher betPublisher,
         INotificationService notificationService,
         IExecutionStateService executionStateService,
+        IResultTracker resultTracker,
         IOptions<PosterOptions> posterOptions,
         ILogger<PostingCycleService> logger)
     {
@@ -38,6 +40,7 @@ public class PostingCycleService : IPostingCycleService
         _betPublisher         = betPublisher;
         _notificationService  = notificationService;
         _executionStateService = executionStateService;
+        _resultTracker        = resultTracker;
         _options              = posterOptions.Value;
         _logger               = logger;
     }
@@ -52,6 +55,9 @@ public class PostingCycleService : IPostingCycleService
             {
                 // 1. Purge des entrées > 30 jours (Step="Purge" géré dans HistoryManager)
                 await _historyManager.PurgeOldEntriesAsync(ct);
+
+                // 1b. Vérification des résultats des pronostics publiés (Step="Report")
+                await _resultTracker.TrackResultsAsync(ct);
 
                 // 2. Lecture des tipsters (Step="Scrape" géré dans TipsterService)
                 var tipsters = await _tipsterService.LoadTipstersAsync(ct);

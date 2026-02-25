@@ -41,6 +41,8 @@ public class BetPublisherTests
         }
         public Task<List<Models.ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
             => Task.FromResult(new List<Models.ScrapedTipster>());
+        public Task<List<SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
+            => Task.FromResult(new List<SettledBet>());
     }
 
     private sealed class FakeHistoryManager : IHistoryManager
@@ -64,6 +66,10 @@ public class BetPublisherTests
         }
 
         public Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
+            => Task.FromResult(new List<HistoryEntry>());
+        public Task UpdateEntriesAsync(List<HistoryEntry> updatedEntries, CancellationToken ct = default)
+            => Task.CompletedTask;
+        public Task<List<HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default)
             => Task.FromResult(new List<HistoryEntry>());
     }
 

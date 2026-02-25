@@ -71,6 +71,11 @@ public class SchedulerWorkerTests
     {
         public async Task ExecuteCycleWithRetryAsync(Func<CancellationToken, Task> cycleAction, CancellationToken ct = default)
             => await cycleAction(ct);
+
+        public Bet2InvestPoster.Models.CircuitBreakerState GetCircuitBreakerState()
+            => Bet2InvestPoster.Models.CircuitBreakerState.Closed;
+
+        public TimeSpan? GetCircuitBreakerRemainingDuration() => null;
     }
 
     // ──────────────────────────────── Helpers ────────────────────────────────

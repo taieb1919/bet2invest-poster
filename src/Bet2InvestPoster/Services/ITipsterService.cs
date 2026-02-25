@@ -35,4 +35,9 @@ public interface ITipsterService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>True if the tipster was removed; false if not found.</returns>
     Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default);
+
+    /// <summary>
+    /// Remplace toute la liste de tipsters par <paramref name="tipsters"/> via écriture atomique.
+    /// </summary>
+    Task ReplaceTipstersAsync(List<TipsterConfig> tipsters, CancellationToken ct = default);
 }

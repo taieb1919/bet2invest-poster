@@ -574,6 +574,10 @@ public class BetSelectorTests
 
         public Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
             => Task.FromResult(new List<HistoryEntry>());
+        public Task UpdateEntriesAsync(List<HistoryEntry> updatedEntries, CancellationToken ct = default)
+            => Task.CompletedTask;
+        public Task<List<HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default)
+            => Task.FromResult(new List<HistoryEntry>());
     }
 
     // ── Logger capturant les messages pour assertion ───────────────────────────

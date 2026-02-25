@@ -23,6 +23,10 @@ public class PostingCycleServiceNotificationTests
             => Task.FromResult((true, new List<PendingBet>()));
         public Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default)
             => Task.FromResult<string?>(null);
+        public Task<List<Models.ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
+            => Task.FromResult(new List<Models.ScrapedTipster>());
+        public Task<List<JTDev.Bet2InvestScraper.Models.SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
+            => Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
     }
 
     private sealed class SimpleHistoryManager : IHistoryManager
@@ -36,6 +40,15 @@ public class PostingCycleServiceNotificationTests
 
         public Task<List<Models.HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
             => Task.FromResult(new List<Models.HistoryEntry>());
+        public Task UpdateEntriesAsync(List<Models.HistoryEntry> updatedEntries, CancellationToken ct = default)
+            => Task.CompletedTask;
+        public Task<List<Models.HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default)
+            => Task.FromResult(new List<Models.HistoryEntry>());
+    }
+
+    private sealed class SimpleResultTracker : IResultTracker
+    {
+        public Task TrackResultsAsync(CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class SimpleTipsterService : ITipsterService
@@ -47,6 +60,8 @@ public class PostingCycleServiceNotificationTests
             => throw new NotImplementedException();
 
         public Task<bool> RemoveTipsterAsync(string url, CancellationToken ct = default)
+            => throw new NotImplementedException();
+        public Task ReplaceTipstersAsync(List<Models.TipsterConfig> tipsters, CancellationToken ct = default)
             => throw new NotImplementedException();
     }
 
@@ -94,6 +109,7 @@ public class PostingCycleServiceNotificationTests
             publisher,
             notification,
             state,
+            new SimpleResultTracker(),
             Options.Create(new PosterOptions()),
             NullLogger<PostingCycleService>.Instance);
 
@@ -142,6 +158,7 @@ public class PostingCycleServiceNotificationTests
             new ThrowingBetPublisher { PublishedCount = 1 },
             trackingNotification,
             trackingState,
+            new SimpleResultTracker(),
             Options.Create(new PosterOptions()),
             NullLogger<PostingCycleService>.Instance);
 

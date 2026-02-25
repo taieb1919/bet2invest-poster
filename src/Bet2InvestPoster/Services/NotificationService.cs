@@ -67,4 +67,13 @@ public class NotificationService : INotificationService
             await _botClient.SendMessage(_chatId, text, cancellationToken: ct);
         }
     }
+
+    public async Task SendMessageAsync(string message, CancellationToken ct = default)
+    {
+        using (LogContext.PushProperty("Step", "Notify"))
+        {
+            _logger.LogInformation("Envoi message générique — {Length} caractères", message.Length);
+            await _botClient.SendMessage(_chatId, message, cancellationToken: ct);
+        }
+    }
 }

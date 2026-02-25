@@ -30,4 +30,17 @@ public interface IExtendedBet2InvestClient
 
     /// <summary>Publishes a bet order via POST /v1/bet-orders. Returns the order ID if available.</summary>
     Task<string?> PublishBetAsync(int bankrollId, BetOrderRequest bet, CancellationToken ct = default);
+
+    /// <summary>
+    /// Scrape la liste des tipsters gratuits (Pro == false) triés par ROI descendant.
+    /// Appel paginé sur GET /tipsters avec rate limiting 500ms entre requêtes.
+    /// </summary>
+    Task<List<Models.ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Retourne les paris résolus (settled) d'un tipster sur une plage de dates.
+    /// Appel paginé sur GET /v1/statistics/{numericId}/bets/settled.
+    /// </summary>
+    Task<List<SettledBet>> GetSettledBetsForTipsterAsync(
+        int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default);
 }

@@ -38,6 +38,8 @@ public class ResultTrackerTests
             UpdateCallCount++;
             return Task.CompletedTask;
         }
+        public Task<List<HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default)
+            => Task.FromResult(new List<HistoryEntry>());
     }
 
     private sealed class FakeTipsterService : ITipsterService

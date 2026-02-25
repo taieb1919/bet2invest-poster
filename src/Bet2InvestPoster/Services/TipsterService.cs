@@ -177,6 +177,22 @@ public class TipsterService : ITipsterService
         }
     }
 
+    public async Task ReplaceTipstersAsync(List<TipsterConfig> tipsters, CancellationToken ct = default)
+    {
+        var filePath = Path.Combine(_options.DataPath, "tipsters.json");
+
+        await FileLock.WaitAsync(ct);
+        try
+        {
+            await SaveAtomicAsync(tipsters, filePath, ct);
+            _logger.LogInformation("Liste de tipsters remplacée — {Count} tipsters écrits", tipsters.Count);
+        }
+        finally
+        {
+            FileLock.Release();
+        }
+    }
+
     // ReadRawAsync retourne une liste vide si le fichier n'existe pas, contrairement à LoadTipstersAsync
     // qui lève FileNotFoundException. Ce comportement est délibéré : Add/Remove créent le fichier
     // implicitement si nécessaire, sans exiger qu'il préexiste.

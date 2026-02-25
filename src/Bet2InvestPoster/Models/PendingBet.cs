@@ -12,6 +12,22 @@ public class PendingBet : SettledBet
     [JsonPropertyName("market")]
     public PendingBetMarket? Market { get; set; }
 
+    /// <summary>ROI du tipster source (pour scoring intelligent). Non désérialisé depuis l'API.</summary>
+    [JsonIgnore]
+    public decimal? TipsterRoi { get; set; }
+
+    /// <summary>Proxy du taux de réussite du tipster (BetsNumber). Non désérialisé depuis l'API.</summary>
+    [JsonIgnore]
+    public decimal? TipsterWinRate { get; set; }
+
+    /// <summary>Sport le plus parié par le tipster source. Non désérialisé depuis l'API.</summary>
+    [JsonIgnore]
+    public string? TipsterSport { get; set; }
+
+    /// <summary>Slug/username du tipster source. Non désérialisé depuis l'API.</summary>
+    [JsonIgnore]
+    public string? TipsterUsername { get; set; }
+
     /// <summary>
     /// Maps bet team/side to the API designation value used by the web UI.
     /// TEAM1 → home, TEAM2 → away, OVER → over, UNDER → under.

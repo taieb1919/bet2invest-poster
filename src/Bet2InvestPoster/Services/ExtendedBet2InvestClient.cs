@@ -219,6 +219,9 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
                     if (slugsToResolve.TryGetValue(apiTipster.Username, out var config))
                     {
                         config.NumericId = apiTipster.Id;
+                        config.Roi = apiTipster.GeneralStatistics?.Roi;
+                        config.BetsNumber = apiTipster.GeneralStatistics?.BetsNumber;
+                        config.MostBetSport = apiTipster.GeneralStatistics?.MostBetSport;
                         _logger.LogInformation("Tipster {Name} résolu → numericId={NumericId}", config.Name, apiTipster.Id);
                         slugsToResolve.Remove(apiTipster.Username);
                     }
@@ -349,6 +352,45 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
                 result.Count);
 
             return result;
+        }
+    }
+
+    // ─── Settled Bets (GET /v1/statistics/{numericId}/bets/settled) ──────────
+
+    public async Task<List<SettledBet>> GetSettledBetsForTipsterAsync(
+        int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
+    {
+        await EnsureAuthenticatedAsync(ct);
+
+        using (LogContext.PushProperty("Step", "Report"))
+        {
+            var allBets = new List<SettledBet>();
+            var page = 0;
+            var startDateStr = startDate.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            var endDateStr = endDate.ToString("yyyy-MM-ddTHH:mm:ss.fffZ");
+            const int maxPages = 20;
+
+            for (; page < maxPages && !ct.IsCancellationRequested; page++)
+            {
+                await Task.Delay(_options.RequestDelayMs, ct);
+
+                var url = $"/v1/statistics/{numericId}/bets/settled?page={page}&sportId=-1&startDate={startDateStr}&endDate={endDateStr}&onlyImportedBets=false";
+                var response = await _http.GetAsync(url, ct);
+
+                if (!response.IsSuccessStatusCode) break;
+
+                var data = await response.Content.ReadFromJsonAsync<SettledBetsResponse>(JsonOptions, ct);
+                if (data?.SettledBets == null || data.SettledBets.Count == 0) break;
+
+                allBets.AddRange(data.SettledBets);
+
+                if (data.Pagination?.NextPage == null || data.Pagination.NextPage <= page) break;
+            }
+
+            _logger.LogInformation(
+                "Paris résolus récupérés pour tipster {NumericId} : {Count} paris", numericId, allBets.Count);
+
+            return allBets;
         }
     }
 

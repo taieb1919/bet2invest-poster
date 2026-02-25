@@ -3,6 +3,7 @@ using Bet2InvestPoster.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Polly.CircuitBreaker;
 using Serilog.Context;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -62,6 +63,19 @@ public class RunCommandHandler : ICommandHandler
                 ? $" — {state.LastRunResult}"
                 : "";
             await bot.SendMessage(chatId, $"✅ Cycle exécuté avec succès{resultDetail}.", cancellationToken: ct);
+        }
+        catch (BrokenCircuitException)
+        {
+            var remaining = _resiliencePipelineService.GetCircuitBreakerRemainingDuration();
+            var minutes = remaining?.TotalMinutes ?? 5;
+            using (LogContext.PushProperty("Step", "Notify"))
+            {
+                _logger.LogWarning("Circuit breaker actif — commande /run rejetée");
+            }
+            await bot.SendMessage(
+                chatId,
+                $"🔴 Circuit breaker actif — service API indisponible. Réessai automatique dans {minutes:F0} min.",
+                cancellationToken: ct);
         }
         catch (Exception ex)
         {

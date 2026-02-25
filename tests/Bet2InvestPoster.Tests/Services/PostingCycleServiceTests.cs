@@ -29,6 +29,8 @@ public class PostingCycleServiceTests
             => Task.FromResult<string?>(null);
         public Task<List<ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
             => Task.FromResult(new List<ScrapedTipster>());
+        public Task<List<JTDev.Bet2InvestScraper.Models.SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
+            => Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
     }
 
     private sealed class FakeHistoryManager : IHistoryManager
@@ -51,6 +53,20 @@ public class PostingCycleServiceTests
 
         public Task<List<HistoryEntry>> GetRecentEntriesAsync(int count, CancellationToken ct = default)
             => Task.FromResult(new List<HistoryEntry>());
+        public Task UpdateEntriesAsync(List<HistoryEntry> updatedEntries, CancellationToken ct = default)
+            => Task.CompletedTask;
+        public Task<List<HistoryEntry>> GetEntriesSinceAsync(DateTime since, CancellationToken ct = default)
+            => Task.FromResult(new List<HistoryEntry>());
+    }
+
+    private sealed class FakeResultTracker : IResultTracker
+    {
+        public int CallCount { get; private set; }
+        public Task TrackResultsAsync(CancellationToken ct = default)
+        {
+            CallCount++;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeTipsterService : ITipsterService
@@ -156,16 +172,18 @@ public class PostingCycleServiceTests
         FakeBetPublisher?        publisher    = null,
         FakeNotificationService? notification = null,
         FakeExecutionStateService? state      = null,
+        FakeResultTracker?       resultTracker = null,
         PosterOptions?           options      = null)
         => new PostingCycleService(
             new FakeExtendedClient(),
-            history      ?? new FakeHistoryManager(),
-            tipsters     ?? new FakeTipsterService(),
-            fetcher      ?? new FakeUpcomingBetsFetcher(),
-            selector     ?? new FakeBetSelector(),
-            publisher    ?? new FakeBetPublisher(),
-            notification ?? new FakeNotificationService(),
-            state        ?? new FakeExecutionStateService(),
+            history       ?? new FakeHistoryManager(),
+            tipsters      ?? new FakeTipsterService(),
+            fetcher       ?? new FakeUpcomingBetsFetcher(),
+            selector      ?? new FakeBetSelector(),
+            publisher     ?? new FakeBetPublisher(),
+            notification  ?? new FakeNotificationService(),
+            state         ?? new FakeExecutionStateService(),
+            resultTracker ?? new FakeResultTracker(),
             Options.Create(options ?? new PosterOptions()),
             NullLogger<PostingCycleService>.Instance);
 
@@ -205,6 +223,17 @@ public class PostingCycleServiceTests
         Assert.Equal(1, fetcher.CallCount);
         Assert.Equal(1, selector.CallCount);
         Assert.Equal(1, publisher.CallCount);
+    }
+
+    [Fact]
+    public async Task RunCycleAsync_CallsResultTrackerAfterPurge()
+    {
+        var resultTracker = new FakeResultTracker();
+        var service = CreateService(resultTracker: resultTracker);
+
+        await service.RunCycleAsync();
+
+        Assert.Equal(1, resultTracker.CallCount);
     }
 
     [Fact]
@@ -287,6 +316,7 @@ public class PostingCycleServiceTests
         services.AddScoped<IBetPublisher, BetPublisher>();
         services.AddSingleton<INotificationService>(_ => new FakeNotificationService());
         services.AddSingleton<IExecutionStateService, ExecutionStateService>();
+        services.AddScoped<IResultTracker, ResultTracker>();
         services.AddScoped<IPostingCycleService, PostingCycleService>();
 
         using var provider = services.BuildServiceProvider();

@@ -264,5 +264,7 @@ public class UpcomingBetsFetcherTests
             => Task.FromResult<string?>(null);
         public Task<List<Models.ScrapedTipster>> GetFreeTipstersAsync(CancellationToken ct = default)
             => Task.FromResult(new List<Models.ScrapedTipster>());
+        public Task<List<JTDev.Bet2InvestScraper.Models.SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
+            => Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
     }
 }
