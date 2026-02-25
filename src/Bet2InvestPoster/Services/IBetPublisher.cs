@@ -9,5 +9,5 @@ public interface IBetPublisher
     /// Returns the count of successfully published bets.
     /// Logs with Step="Publish".
     /// </summary>
-    Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default);
+    Task<int> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default);
 }

@@ -221,4 +221,19 @@ public class MessageFormatter : IMessageFormatter
 
         return $"📊 État du système\n• Dernière exécution : {lastRun}\n• Résultat : {result}\n• Prochain run : {nextRun}\n• Connexion API : {apiStatus}";
     }
+
+    public string FormatCycleSuccess(CycleResult result)
+    {
+        if (result.ScrapedCount == 0)
+            return "⚠️ Aucun pronostic disponible chez les tipsters configurés.";
+
+        if (result.HasActiveFilters)
+        {
+            var icon = result.PublishedCount == 0 ? "⚠️" : "✅";
+            return $"{icon} {result.PublishedCount}/{result.FilteredCount} filtrés sur {result.ScrapedCount} scrapés.";
+        }
+
+        return $"✅ {result.PublishedCount} pronostics publiés sur {result.ScrapedCount} scrapés.";
+    }
 }
+

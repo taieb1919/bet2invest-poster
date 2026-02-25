@@ -18,12 +18,12 @@ public class RunCommandHandlerTests
         public bool WasCalled { get; private set; }
         public bool ShouldThrow { get; set; }
 
-        public Task RunCycleAsync(CancellationToken ct = default)
+        public Task<Bet2InvestPoster.Models.CycleResult> RunCycleAsync(CancellationToken ct = default)
         {
             WasCalled = true;
             if (ShouldThrow)
                 throw new InvalidOperationException("API indisponible");
-            return Task.CompletedTask;
+            return Task.FromResult(new Bet2InvestPoster.Models.CycleResult());
         }
     }
 
@@ -92,15 +92,15 @@ public class RunCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_Success_CallsCycleServiceAndSendsSuccessMessage()
+    public async Task HandleAsync_Success_CallsCycleServiceWithoutSendingExtraMessage()
     {
+        // PostingCycleService notifie déjà via NotificationService — RunCommandHandler ne doit pas doubler.
         var (handler, bot, cycleService) = CreateHandler(shouldThrow: false);
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
         Assert.True(cycleService.WasCalled);
-        Assert.Single(bot.SentMessages);
-        Assert.Contains("✅", bot.SentMessages[0]);
+        Assert.Empty(bot.SentMessages);
     }
 
     [Fact]
@@ -124,12 +124,12 @@ public class RunCommandHandlerTests
         public int CallCount { get; private set; }
         public int FailCount { get; set; } = int.MaxValue;
 
-        public Task RunCycleAsync(CancellationToken ct = default)
+        public Task<Bet2InvestPoster.Models.CycleResult> RunCycleAsync(CancellationToken ct = default)
         {
             CallCount++;
             if (CallCount <= FailCount)
                 throw new InvalidOperationException($"Simulated failure #{CallCount}");
-            return Task.CompletedTask;
+            return Task.FromResult(new Bet2InvestPoster.Models.CycleResult());
         }
     }
 
@@ -155,16 +155,15 @@ public class RunCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_FailsThenSucceeds_RetriesAndSendsSuccess()
+    public async Task HandleAsync_FailsThenSucceeds_RetriesWithoutExtraMessage()
     {
-        // Fails once, succeeds on 2nd attempt
+        // Fails once, succeeds on 2nd attempt — pas de double message (PostingCycleService notifie déjà)
         var (handler, bot, cycleService) = CreateHandlerWithRealPolly(failCount: 1, maxRetryCount: 3);
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
         Assert.Equal(2, cycleService.CallCount);
-        Assert.Single(bot.SentMessages);
-        Assert.Contains("✅", bot.SentMessages[0]);
+        Assert.Empty(bot.SentMessages);
     }
 
     [Fact]

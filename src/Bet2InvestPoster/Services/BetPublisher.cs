@@ -29,7 +29,7 @@ public class BetPublisher : IBetPublisher
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    public async Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default)
+    public async Task<int> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
     {
         using (LogContext.PushProperty("Step", "Publish"))
         {

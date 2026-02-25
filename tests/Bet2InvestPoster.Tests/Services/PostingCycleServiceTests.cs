@@ -114,14 +114,20 @@ public class PostingCycleServiceTests
         private readonly List<string>? _callOrder;
         public int CallCount { get; private set; }
         public List<PendingBet> SelectionToReturn { get; set; } = [];
+        /// <summary>
+        /// Nombre de candidats après filtres (avant tirage aléatoire). Par défaut = SelectionToReturn.Count.
+        /// Permet de simuler le cas réaliste FilteredCount > Selected.Count.
+        /// </summary>
+        public int? FilteredCountToReturn { get; set; }
 
         public FakeBetSelector(List<string>? callOrder = null) => _callOrder = callOrder;
 
-        public Task<List<PendingBet>> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
+        public Task<SelectionResult> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
         {
             CallCount++;
             _callOrder?.Add("Select");
-            return Task.FromResult(SelectionToReturn);
+            var filteredCount = FilteredCountToReturn ?? SelectionToReturn.Count;
+            return Task.FromResult(new SelectionResult { FilteredCount = filteredCount, Selected = SelectionToReturn });
         }
     }
 
@@ -129,11 +135,11 @@ public class PostingCycleServiceTests
     {
         private readonly List<string>? _callOrder;
         public int CallCount { get; private set; }
-        public List<PendingBet> LastSelected { get; private set; } = [];
+        public IReadOnlyList<PendingBet> LastSelected { get; private set; } = [];
 
         public FakeBetPublisher(List<string>? callOrder = null) => _callOrder = callOrder;
 
-        public Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default)
+        public Task<int> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
         {
             CallCount++;
             LastSelected = selected;
@@ -287,6 +293,51 @@ public class PostingCycleServiceTests
 
         // Assert : RecordSuccess NON appelé (cycle s'est arrêté avant)
         Assert.False(state.RecordSuccessCalled);
+    }
+
+    /// <summary>H2 — Vérifie que CycleResult retourne les bons compteurs ScrapedCount, FilteredCount, PublishedCount.</summary>
+    [Fact]
+    public async Task RunCycleAsync_ReturnsCycleResult_WithCorrectCounts()
+    {
+        // Arrange : fetcher retourne 40 bets, selector filtre à 30, sélectionne 10, publisher publie 10
+        var scrapedBets = Enumerable.Range(1, 40).Select(i => new PendingBet { Id = i }).ToList();
+        var selectedBets = Enumerable.Range(1, 10).Select(i => new PendingBet { Id = i }).ToList();
+
+        var fetcher  = new FakeUpcomingBetsFetcher { BetsToReturn = scrapedBets };
+        var selector = new FakeBetSelector { SelectionToReturn = selectedBets, FilteredCountToReturn = 30 };
+        var publisher = new FakeBetPublisher();
+        var service  = CreateService(fetcher: fetcher, selector: selector, publisher: publisher);
+
+        // Act
+        var result = await service.RunCycleAsync();
+
+        // Assert
+        Assert.Equal(40, result.ScrapedCount);
+        Assert.Equal(30, result.FilteredCount);
+        Assert.Equal(10, result.PublishedCount);
+    }
+
+    /// <summary>H3 — Vérifie que FilteredCountToReturn != Selected.Count est bien propagé dans CycleResult.</summary>
+    [Fact]
+    public async Task RunCycleAsync_FilteredCountDiffersFromSelected_ReflectedInCycleResult()
+    {
+        // Arrange : 20 candidats scrapés, 15 filtrés, 5 sélectionnés et publiés
+        var scrapedBets  = Enumerable.Range(1, 20).Select(i => new PendingBet { Id = i }).ToList();
+        var selectedBets = Enumerable.Range(1, 5).Select(i => new PendingBet { Id = i }).ToList();
+
+        var fetcher  = new FakeUpcomingBetsFetcher { BetsToReturn = scrapedBets };
+        var selector = new FakeBetSelector { SelectionToReturn = selectedBets, FilteredCountToReturn = 15 };
+        var publisher = new FakeBetPublisher();
+        var service  = CreateService(fetcher: fetcher, selector: selector, publisher: publisher);
+
+        // Act
+        var result = await service.RunCycleAsync();
+
+        // Assert : FilteredCount reflète le vrai compteur "après filtres" (pas Selected.Count)
+        Assert.Equal(20, result.ScrapedCount);
+        Assert.Equal(15, result.FilteredCount);
+        Assert.Equal(5, result.PublishedCount);
+        Assert.NotEqual(result.FilteredCount, result.PublishedCount);
     }
 
     [Fact]

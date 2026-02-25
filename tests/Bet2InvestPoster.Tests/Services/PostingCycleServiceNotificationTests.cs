@@ -73,8 +73,8 @@ public class PostingCycleServiceNotificationTests
 
     private sealed class SimpleBetSelector : IBetSelector
     {
-        public Task<List<PendingBet>> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
-            => Task.FromResult(new List<PendingBet>());
+        public Task<SelectionResult> SelectAsync(List<PendingBet> candidates, CancellationToken ct = default)
+            => Task.FromResult(new SelectionResult { FilteredCount = 0, Selected = [] });
     }
 
     private sealed class ThrowingBetPublisher : IBetPublisher
@@ -83,7 +83,7 @@ public class PostingCycleServiceNotificationTests
         public bool ShouldThrow { get; set; }
         public Exception? ExceptionToThrow { get; set; }
 
-        public Task<int> PublishAllAsync(List<PendingBet> selected, CancellationToken ct = default)
+        public Task<int> PublishAllAsync(IReadOnlyList<PendingBet> selected, CancellationToken ct = default)
         {
             if (ShouldThrow)
                 throw ExceptionToThrow ?? new InvalidOperationException("Simulated failure");
@@ -127,7 +127,7 @@ public class PostingCycleServiceNotificationTests
 
         Assert.Equal(1, notification.SuccessCallCount);
         Assert.Equal(0, notification.FailureCallCount);
-        Assert.Equal(7, notification.LastSuccessCount);
+        Assert.Equal(7, notification.LastSuccessResult?.PublishedCount);
     }
 
     [Fact]
@@ -221,7 +221,7 @@ public class PostingCycleServiceNotificationTests
         private readonly List<string> _order;
         private readonly string _tag;
         public TrackingNotificationService(List<string> order, string tag) { _order = order; _tag = tag; }
-        public Task NotifySuccessAsync(int publishedCount, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
+        public Task NotifySuccessAsync(Bet2InvestPoster.Models.CycleResult result, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyFailureAsync(string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyFinalFailureAsync(int attempts, string reason, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }
         public Task NotifyNoFilteredCandidatesAsync(string filterDetails, CancellationToken ct = default) { _order.Add(_tag); return Task.CompletedTask; }

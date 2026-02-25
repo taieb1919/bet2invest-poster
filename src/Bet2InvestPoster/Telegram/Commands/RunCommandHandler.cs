@@ -14,7 +14,6 @@ public class RunCommandHandler : ICommandHandler
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly IResiliencePipelineService _resiliencePipelineService;
-    private readonly IExecutionStateService _stateService;
     private readonly int _maxRetryCount;
     private readonly ILogger<RunCommandHandler> _logger;
 
@@ -27,7 +26,7 @@ public class RunCommandHandler : ICommandHandler
     {
         _scopeFactory = scopeFactory;
         _resiliencePipelineService = resiliencePipelineService;
-        _stateService = stateService;
+        _ = stateService; // conservé pour compatibilité DI (inutilisé depuis suppression double message)
         _maxRetryCount = options.Value.MaxRetryCount;
         _logger = logger;
     }
@@ -52,17 +51,11 @@ public class RunCommandHandler : ICommandHandler
                 await cycleService.RunCycleAsync(token);
             }, ct);
 
-            var state = _stateService.GetState();
-
             using (LogContext.PushProperty("Step", "Notify"))
             {
                 _logger.LogInformation("Cycle /run terminé avec succès");
             }
-
-            var resultDetail = state.LastRunResult is not null
-                ? $" — {state.LastRunResult}"
-                : "";
-            await bot.SendMessage(chatId, $"✅ Cycle exécuté avec succès{resultDetail}.", cancellationToken: ct);
+            // Pas de message Telegram ici : PostingCycleService notifie déjà via NotificationService.
         }
         catch (BrokenCircuitException)
         {
