@@ -30,7 +30,9 @@ public class MessageFormatter : IMessageFormatter
                 var desc = !string.IsNullOrWhiteSpace(entry.MatchDescription)
                     ? entry.MatchDescription
                     : $"betId: {entry.BetId}";
-                sb.AppendLine($"  • {time} — {desc}");
+                var pick = FormatHistoryPick(entry);
+                var odds = entry.Odds.HasValue ? $" @ {entry.Odds.Value:F2}" : "";
+                sb.AppendLine($"  • {time} — {desc} — {pick}{odds}");
             }
         }
 
@@ -322,6 +324,41 @@ public class MessageFormatter : IMessageFormatter
         // Ajouter les points pour O/U, Handicap, etc.
         if (points.HasValue)
             pickLabel += $" {points.Value:G}";
+
+        return $"{typeLabel}: {pickLabel}";
+    }
+
+    private static string FormatHistoryPick(HistoryEntry entry)
+    {
+        var key = entry.MarketKey ?? "";
+        var designation = entry.Designation ?? "?";
+
+        // Extraire le type et les points du marketKey (format: "s;0;m", "s;0;ou;2.5", "s;0;s;-1.5")
+        var parts = key.Split(';');
+        var marketType = parts.Length >= 3 ? parts[2] : "";
+
+        var typeLabel = marketType switch
+        {
+            "m" => "1X2",
+            "ou" => "O/U",
+            "s" => "Handicap",
+            "tt" => "Team O/U",
+            _ => marketType
+        };
+
+        var pickLabel = designation switch
+        {
+            "home" => "Dom.",
+            "away" => "Ext.",
+            "over" => "Over",
+            "under" => "Under",
+            _ => designation
+        };
+
+        // Ajouter les points s'ils sont dans le marketKey (ex: "s;0;ou;2.5" → "2.5")
+        if (parts.Length >= 4 && decimal.TryParse(parts[3], System.Globalization.NumberStyles.Any,
+                System.Globalization.CultureInfo.InvariantCulture, out var points))
+            pickLabel += $" {points:G}";
 
         return $"{typeLabel}: {pickLabel}";
     }
