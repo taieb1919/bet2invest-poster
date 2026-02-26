@@ -333,6 +333,71 @@ public class ExtendedBet2InvestClientTests
             $"Délai attendu ≥ 400ms (2×200ms: login + publish), obtenu {sw.ElapsedMilliseconds}ms");
     }
 
+    // ─── PublishBetAsync Odd-Change Retry Tests ──────────────────────
+
+    private static HttpResponseMessage OddChangeResponse(string newPriceStr = "193") =>
+        new(HttpStatusCode.UnprocessableEntity)
+        {
+            Content = new StringContent(
+                $@"{{""statusCode"":422,""message"":[""The odd have changed to 2.93. Validate to accept the change."",""{newPriceStr}""],""error"":""UNPROCESSABLE_ENTITY""}}",
+                Encoding.UTF8,
+                "application/json")
+        };
+
+    [Fact]
+    public async Task PublishBet_422OddChange_RetriesWithNewPrice_Success()
+    {
+        var callCount = 0;
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
+            callCount++;
+            if (callCount == 1) return OddChangeResponse("293");
+            return PublishSuccess();
+        });
+
+        var client = CreateClient(handler);
+        var bet = new BetOrderRequest { Price = 250, Units = 1m };
+        var result = await client.PublishBetAsync(1, bet);
+
+        Assert.Equal("123", result);
+        Assert.Equal(293, bet.Price);
+        Assert.Equal(2, callCount);
+    }
+
+    [Fact]
+    public async Task PublishBet_422MalformedBody_ThrowsPublishException()
+    {
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
+            return new HttpResponseMessage(HttpStatusCode.UnprocessableEntity)
+            {
+                Content = new StringContent("not json", Encoding.UTF8, "text/plain")
+            };
+        });
+
+        var client = CreateClient(handler);
+        var ex = await Assert.ThrowsAsync<PublishException>(
+            () => client.PublishBetAsync(1, new BetOrderRequest()));
+        Assert.Equal(422, ex.HttpStatusCode);
+    }
+
+    [Fact]
+    public async Task PublishBet_422OddChange_RetryAlsoFails_ThrowsPublishException()
+    {
+        var handler = new FakeHttpMessageHandler(req =>
+        {
+            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
+            return OddChangeResponse("300");
+        });
+
+        var client = CreateClient(handler);
+        var ex = await Assert.ThrowsAsync<PublishException>(
+            () => client.PublishBetAsync(1, new BetOrderRequest { Price = 250 }));
+        Assert.Equal(422, ex.HttpStatusCode);
+    }
+
     // ─── DI Registration Tests ──────────────────────────────────────
 
     [Fact]

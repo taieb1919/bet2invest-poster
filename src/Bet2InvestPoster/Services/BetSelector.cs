@@ -40,6 +40,9 @@ public class BetSelector : IBetSelector
                 })
                 .ToList();
 
+            // Exclure les paris live (seuls les paris prematch sont publiés)
+            available = available.Where(b => !b.IsLive).ToList();
+
             // Filtrage avancé par cotes et plage horaire (AC: FR35, FR36)
             // Appliqué AVANT la sélection aléatoire
             var beforeFilterCount = available.Count;

@@ -283,11 +283,26 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
             var url = $"/v1/bankrolls/{bankrollId}/bets";
             var response = await _http.PostAsJsonAsync(url, bet, JsonOptions, ct);
 
+            if (response.StatusCode == System.Net.HttpStatusCode.UnprocessableEntity)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                if (TryParseOddChange(errorBody, out var newPrice))
+                {
+                    var oldPrice = bet.Price;
+                    bet.Price = newPrice;
+                    _logger.LogWarning(
+                        "Cote changée {OldPrice} → {NewPrice}, retry", oldPrice, newPrice);
+
+                    await Task.Delay(_options.RequestDelayMs, ct);
+                    response = await _http.PostAsJsonAsync(url, bet, JsonOptions, ct);
+                }
+            }
+
             if (!response.IsSuccessStatusCode)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(ct);
                 _logger.LogError(
-                    "Échec de publication : HTTP {StatusCode}", (int)response.StatusCode);
+                    "Échec de publication : HTTP {StatusCode} — {ErrorBody}", (int)response.StatusCode, errorBody);
                 throw new PublishException(0, (int)response.StatusCode,
                     $"Publication échouée avec HTTP {(int)response.StatusCode}: {errorBody}");
             }
@@ -296,6 +311,27 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
             _logger.LogInformation("Pari publié avec succès via {Url} — order {OrderId}", url, result?.Id);
             return result?.Id?.ToString();
         }
+    }
+
+    private static bool TryParseOddChange(string body, out int newPrice)
+    {
+        newPrice = 0;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var message = doc.RootElement.GetProperty("message");
+            if (message.GetArrayLength() >= 2 &&
+                int.TryParse(message[1].GetString(), out var parsed))
+            {
+                newPrice = parsed;
+                return true;
+            }
+        }
+        catch (Exception)
+        {
+            // Malformed body — not a retryable odd change
+        }
+        return false;
     }
 
     // ─── Free Tipsters Scraping (GET /tipsters, Pro == false) ──────

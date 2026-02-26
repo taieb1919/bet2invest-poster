@@ -142,6 +142,37 @@ public class BetSelectorTests
         }
     }
 
+    // ── Test filtrage paris live ────────────────────────────────────────────
+
+    [Fact]
+    public async Task SelectAsync_ExcludesLiveBets()
+    {
+        var selector = CreateSelector();
+        var candidates = new List<PendingBet>
+        {
+            MakeBet(1),
+            MakeBet(2),
+            new PendingBet
+            {
+                Id = 3, Team = "TEAM1", Price = 2.0m, IsLive = true,
+                Event = new BetEvent { Starts = DateTime.UtcNow.AddHours(12) },
+                Market = new PendingBetMarket { MatchupId = "3", Key = "s;0;m" }
+            },
+            new PendingBet
+            {
+                Id = 4, Team = "TEAM1", Price = 2.0m, IsLive = true,
+                Event = new BetEvent { Starts = DateTime.UtcNow.AddHours(12) },
+                Market = new PendingBetMarket { MatchupId = "4", Key = "s;0;m" }
+            },
+        };
+
+        var result = await selector.SelectAsync(candidates);
+
+        Assert.DoesNotContain(result.Selected, b => b.Id == 3);
+        Assert.DoesNotContain(result.Selected, b => b.Id == 4);
+        Assert.Equal(2, result.Selected.Count);
+    }
+
     // ── Tests filtrage par cotes (Story 9.1 AC#1, AC#2) ───────────────────
 
     [Fact]
