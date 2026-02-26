@@ -27,6 +27,8 @@ public class SchedulerWorkerTests
                 throw new InvalidOperationException("Simulated cycle failure");
             return Task.FromResult(new Bet2InvestPoster.Models.CycleResult());
         }
+        public Task<(IReadOnlyList<Bet2InvestPoster.Models.PendingBet> Bets, Bet2InvestPoster.Models.CycleResult PartialResult)> PrepareCycleAsync(CancellationToken ct = default)
+            => throw new NotImplementedException();
     }
 
     // Pass-through: executes the action once, no retry (for existing tests unrelated to Polly)

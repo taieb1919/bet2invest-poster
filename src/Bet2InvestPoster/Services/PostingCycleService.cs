@@ -46,6 +46,35 @@ public class PostingCycleService : IPostingCycleService
         _logger               = logger;
     }
 
+    public async Task<(IReadOnlyList<PendingBet> Bets, CycleResult PartialResult)> PrepareCycleAsync(CancellationToken ct = default)
+    {
+        using (LogContext.PushProperty("Step", "Cycle"))
+        {
+            _logger.LogInformation("Préparation du cycle (sans publication)");
+
+            // 1. Purge
+            await _historyManager.PurgeOldEntriesAsync(ct);
+            await _resultTracker.TrackResultsAsync(ct);
+
+            // 2. Tipsters
+            var tipsters = await _tipsterService.LoadTipstersAsync(ct);
+            await _client.ResolveTipsterIdsAsync(tipsters, ct);
+            _executionStateService.SetApiConnectionStatus(true);
+
+            // 3. Candidats (avant filtrage — l'utilisateur sélectionne manuellement via preview)
+            var candidates = await _upcomingBetsFetcher.FetchAllAsync(tipsters, ct);
+
+            var partialResult = new CycleResult
+            {
+                ScrapedCount = candidates.Count,
+                FilteredCount = candidates.Count,
+                FiltersWereActive = HasActiveFilters()
+            };
+
+            return (candidates, partialResult);
+        }
+    }
+
     public async Task<CycleResult> RunCycleAsync(CancellationToken ct = default)
     {
         using (LogContext.PushProperty("Step", "Cycle"))

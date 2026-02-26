@@ -1,6 +1,9 @@
 using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Telegram.Formatters;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -20,6 +23,11 @@ public class TelegramBotService : BackgroundService
     private readonly ITelegramBotClient _botClient;
     private readonly IOnboardingService _onboardingService;
     private readonly IConversationStateService _conversationState;
+    private readonly PreviewStateService _previewState;
+    private readonly IMessageFormatter _formatter;
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly INotificationService _notificationService;
+    private readonly IExecutionStateService _executionStateService;
     private readonly ILogger<TelegramBotService> _logger;
     private volatile int _retryDelaySeconds = 1;
 
@@ -30,6 +38,11 @@ public class TelegramBotService : BackgroundService
         ITelegramBotClient botClient,
         IOnboardingService onboardingService,
         IConversationStateService conversationState,
+        PreviewStateService previewState,
+        IMessageFormatter formatter,
+        IServiceScopeFactory scopeFactory,
+        INotificationService notificationService,
+        IExecutionStateService executionStateService,
         ILogger<TelegramBotService> logger)
     {
         _options = options.Value;
@@ -38,6 +51,11 @@ public class TelegramBotService : BackgroundService
         _botClient = botClient;
         _onboardingService = onboardingService;
         _conversationState = conversationState;
+        _previewState = previewState;
+        _formatter = formatter;
+        _scopeFactory = scopeFactory;
+        _notificationService = notificationService;
+        _executionStateService = executionStateService;
         _logger = logger;
     }
 
@@ -45,7 +63,7 @@ public class TelegramBotService : BackgroundService
     {
         var receiverOptions = new ReceiverOptions
         {
-            AllowedUpdates = [UpdateType.Message]
+            AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery]
         };
 
         _botClient.StartReceiving(
@@ -116,6 +134,13 @@ public class TelegramBotService : BackgroundService
     {
         _retryDelaySeconds = 1; // Reset backoff — any update proves connectivity
 
+        // Handle callback queries (inline keyboard buttons)
+        if (update.Type == UpdateType.CallbackQuery && update.CallbackQuery is { } callback)
+        {
+            await HandleCallbackQueryAsync(bot, callback, ct);
+            return;
+        }
+
         var chatId = update.Message?.Chat.Id ?? 0;
         if (chatId == 0 || !_authFilter.IsAuthorized(chatId))
             return;
@@ -158,6 +183,104 @@ public class TelegramBotService : BackgroundService
             await bot.SendMessage(chatId,
                 "Commande inconnue. Tapez /help pour la liste des commandes.",
                 cancellationToken: ct);
+        }
+    }
+
+    private async Task HandleCallbackQueryAsync(ITelegramBotClient bot, CallbackQuery callback, CancellationToken ct)
+    {
+        var chatId = callback.Message?.Chat.Id ?? 0;
+        if (chatId == 0 || !_authFilter.IsAuthorized(chatId))
+        {
+            await bot.AnswerCallbackQuery(callback.Id, cancellationToken: ct);
+            return;
+        }
+
+        var data = callback.Data ?? string.Empty;
+
+        try
+        {
+            if (data.StartsWith("t:"))
+            {
+                // Toggle: t:{sessionId}:{index}
+                var parts = data.Split(':');
+                if (parts.Length != 3 || !int.TryParse(parts[2], out var index))
+                {
+                    await bot.AnswerCallbackQuery(callback.Id, "Données invalides", cancellationToken: ct);
+                    return;
+                }
+
+                var session = _previewState.GetBySessionId(parts[1]);
+                if (session == null)
+                {
+                    await bot.AnswerCallbackQuery(callback.Id, "⏰ Session expirée", cancellationToken: ct);
+                    return;
+                }
+
+                session.Toggle(index);
+                var text = _formatter.FormatPreview(session);
+                var keyboard = RunCommandHandler.BuildPreviewKeyboard(session);
+                await bot.EditMessageText(chatId, session.MessageId, text, replyMarkup: keyboard, cancellationToken: ct);
+                await bot.AnswerCallbackQuery(callback.Id, cancellationToken: ct);
+            }
+            else if (data.StartsWith("pub:"))
+            {
+                // Publish: pub:{sessionId}
+                var sessionId = data[4..];
+                var session = _previewState.GetBySessionId(sessionId);
+                if (session == null)
+                {
+                    await bot.AnswerCallbackQuery(callback.Id, "⏰ Session expirée", cancellationToken: ct);
+                    return;
+                }
+
+                var selected = session.GetSelectedBets();
+                _previewState.Remove(chatId);
+
+                if (selected.Count == 0)
+                {
+                    await bot.EditMessageText(chatId, session.MessageId,
+                        "🚫 Aucun pronostic sélectionné — annulé.", cancellationToken: ct);
+                    await bot.AnswerCallbackQuery(callback.Id, cancellationToken: ct);
+                    return;
+                }
+
+                await bot.EditMessageText(chatId, session.MessageId,
+                    $"📤 Publication de {selected.Count} pronostic(s)...", cancellationToken: ct);
+                await bot.AnswerCallbackQuery(callback.Id, cancellationToken: ct);
+
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var publisher = scope.ServiceProvider.GetRequiredService<IBetPublisher>();
+                var published = await publisher.PublishAllAsync(selected, ct);
+
+                var cycleResult = session.PartialCycleResult with { PublishedBets = published };
+                _executionStateService.RecordSuccess(published.Count);
+                await _notificationService.NotifySuccessAsync(cycleResult, ct);
+
+                _logger.LogInformation("Preview publié — {Count} pronostics", published.Count);
+            }
+            else if (data.StartsWith("can:"))
+            {
+                // Cancel: can:{sessionId}
+                var sessionId = data[4..];
+                var session = _previewState.GetBySessionId(sessionId);
+                if (session != null)
+                    _previewState.Remove(chatId);
+
+                var messageId = session?.MessageId ?? callback.Message?.MessageId ?? 0;
+                if (messageId > 0)
+                    await bot.EditMessageText(chatId, messageId, "🚫 Publication annulée.", cancellationToken: ct);
+
+                await bot.AnswerCallbackQuery(callback.Id, cancellationToken: ct);
+            }
+            else
+            {
+                await bot.AnswerCallbackQuery(callback.Id, "Action inconnue", cancellationToken: ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Erreur lors du traitement du callback query");
+            await bot.AnswerCallbackQuery(callback.Id, "❌ Erreur", cancellationToken: ct);
         }
     }
 

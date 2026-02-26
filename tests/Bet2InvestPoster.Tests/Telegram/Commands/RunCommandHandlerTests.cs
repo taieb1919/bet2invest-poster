@@ -1,6 +1,8 @@
 using Bet2InvestPoster.Configuration;
+using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Telegram.Formatters;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -24,6 +26,13 @@ public class RunCommandHandlerTests
             if (ShouldThrow)
                 throw new InvalidOperationException("API indisponible");
             return Task.FromResult(new Bet2InvestPoster.Models.CycleResult());
+        }
+        public Task<(IReadOnlyList<PendingBet> Bets, CycleResult PartialResult)> PrepareCycleAsync(CancellationToken ct = default)
+        {
+            WasCalled = true;
+            if (ShouldThrow)
+                throw new InvalidOperationException("API indisponible");
+            return Task.FromResult<(IReadOnlyList<PendingBet>, CycleResult)>((Array.Empty<PendingBet>(), new CycleResult()));
         }
     }
 
@@ -56,6 +65,8 @@ public class RunCommandHandlerTests
             scopeFactory,
             new FakeResiliencePipelineService(),
             stateService,
+            new PreviewStateService(),
+            new MessageFormatter(),
             options,
             NullLogger<RunCommandHandler>.Instance);
         var bot = new FakeTelegramBotClient();
@@ -70,6 +81,8 @@ public class RunCommandHandlerTests
             sp.GetRequiredService<IServiceScopeFactory>(),
             new FakeResiliencePipelineService(),
             new ExecutionStateService(),
+            new PreviewStateService(),
+            new MessageFormatter(),
             options,
             NullLogger<RunCommandHandler>.Instance);
     }
@@ -92,15 +105,17 @@ public class RunCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_Success_CallsCycleServiceWithoutSendingExtraMessage()
+    public async Task HandleAsync_Success_SendsScrapingAndNoPronosticMessages()
     {
-        // PostingCycleService notifie déjà via NotificationService — RunCommandHandler ne doit pas doubler.
+        // /run now shows preview — with 0 bets, sends scraping + "aucun pronostic"
         var (handler, bot, cycleService) = CreateHandler(shouldThrow: false);
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
         Assert.True(cycleService.WasCalled);
-        Assert.Empty(bot.SentMessages);
+        Assert.Equal(2, bot.SentMessages.Count);
+        Assert.Contains("⏳", bot.SentMessages[0]);
+        Assert.Contains("📭", bot.SentMessages[1]);
     }
 
     [Fact]
@@ -110,11 +125,11 @@ public class RunCommandHandlerTests
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
-        Assert.Single(bot.SentMessages);
-        Assert.Contains("❌", bot.SentMessages[0]);
-        // Error message uses exception type name (no credential leak)
-        Assert.Contains("InvalidOperationException", bot.SentMessages[0]);
-        Assert.DoesNotContain("API indisponible", bot.SentMessages[0]);
+        Assert.Equal(2, bot.SentMessages.Count);
+        Assert.Contains("⏳", bot.SentMessages[0]);
+        Assert.Contains("❌", bot.SentMessages[1]);
+        Assert.Contains("InvalidOperationException", bot.SentMessages[1]);
+        Assert.DoesNotContain("API indisponible", bot.SentMessages[1]);
     }
 
     // --- Polly integration tests (M3 — code review 5.2) ---
@@ -130,6 +145,13 @@ public class RunCommandHandlerTests
             if (CallCount <= FailCount)
                 throw new InvalidOperationException($"Simulated failure #{CallCount}");
             return Task.FromResult(new Bet2InvestPoster.Models.CycleResult());
+        }
+        public Task<(IReadOnlyList<PendingBet> Bets, CycleResult PartialResult)> PrepareCycleAsync(CancellationToken ct = default)
+        {
+            CallCount++;
+            if (CallCount <= FailCount)
+                throw new InvalidOperationException($"Simulated failure #{CallCount}");
+            return Task.FromResult<(IReadOnlyList<PendingBet>, CycleResult)>((Array.Empty<PendingBet>(), new CycleResult()));
         }
     }
 
@@ -148,6 +170,8 @@ public class RunCommandHandlerTests
             sp.GetRequiredService<IServiceScopeFactory>(),
             resilience,
             stateService,
+            new PreviewStateService(),
+            new MessageFormatter(),
             options,
             NullLogger<RunCommandHandler>.Instance);
         var bot = new FakeTelegramBotClient();
@@ -155,15 +179,15 @@ public class RunCommandHandlerTests
     }
 
     [Fact]
-    public async Task HandleAsync_FailsThenSucceeds_RetriesWithoutExtraMessage()
+    public async Task HandleAsync_FailsThenSucceeds_RetriesAndShowsPreview()
     {
-        // Fails once, succeeds on 2nd attempt — pas de double message (PostingCycleService notifie déjà)
+        // Fails once, succeeds on 2nd attempt — shows scraping msg + "aucun pronostic" (0 bets)
         var (handler, bot, cycleService) = CreateHandlerWithRealPolly(failCount: 1, maxRetryCount: 3);
 
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
         Assert.Equal(2, cycleService.CallCount);
-        Assert.Empty(bot.SentMessages);
+        Assert.Contains("⏳", bot.SentMessages[0]);
     }
 
     [Fact]
@@ -175,8 +199,9 @@ public class RunCommandHandlerTests
         await handler.HandleAsync(bot, MakeMessage(), CancellationToken.None);
 
         Assert.Equal(3, cycleService.CallCount);
-        Assert.Single(bot.SentMessages);
-        Assert.Contains("❌", bot.SentMessages[0]);
-        Assert.Contains("3 tentatives", bot.SentMessages[0]);
+        Assert.Equal(2, bot.SentMessages.Count);
+        Assert.Contains("⏳", bot.SentMessages[0]);
+        Assert.Contains("❌", bot.SentMessages[1]);
+        Assert.Contains("3 tentatives", bot.SentMessages[1]);
     }
 }

@@ -13,4 +13,5 @@ public interface IMessageFormatter
     string FormatScrapedTipstersConfirmation();
     string FormatReport(List<HistoryEntry> entries, int days);
     string FormatCycleSuccess(CycleResult result);
+    string FormatPreview(PreviewSession session);
 }

@@ -9,4 +9,10 @@ public interface IPostingCycleService
     /// Returns a CycleResult with scraping, filtering, and publishing statistics.
     /// </summary>
     Task<CycleResult> RunCycleAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Runs scrape + select without publishing. Returns selected bets and partial cycle result.
+    /// Used by /run interactive preview.
+    /// </summary>
+    Task<(IReadOnlyList<PendingBet> Bets, CycleResult PartialResult)> PrepareCycleAsync(CancellationToken ct = default);
 }

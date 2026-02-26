@@ -185,6 +185,8 @@ public class SchedulerWorkerMultiScheduleTests
     {
         public Task<Bet2InvestPoster.Models.CycleResult> RunCycleAsync(CancellationToken ct = default)
             => Task.FromResult(new Bet2InvestPoster.Models.CycleResult());
+        public Task<(IReadOnlyList<Bet2InvestPoster.Models.PendingBet> Bets, Bet2InvestPoster.Models.CycleResult PartialResult)> PrepareCycleAsync(CancellationToken ct = default)
+            => throw new NotImplementedException();
     }
 
     private class FakeResiliencePipeline : IResiliencePipelineService

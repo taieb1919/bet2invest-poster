@@ -265,5 +265,65 @@ public class MessageFormatter : IMessageFormatter
 
         return sb.ToString().TrimEnd();
     }
+
+    public string FormatPreview(PreviewSession session)
+    {
+        var selectedCount = session.Selected.Count(s => s);
+        var sb = new StringBuilder();
+        sb.AppendLine($"👁 Aperçu — {selectedCount}/{session.Bets.Count} sélectionnés");
+        sb.AppendLine($"({session.PartialCycleResult.ScrapedCount} scrapés, {session.PartialCycleResult.FilteredCount} filtrés)");
+        sb.AppendLine();
+
+        for (var i = 0; i < session.Bets.Count; i++)
+        {
+            var bet = session.Bets[i];
+            var icon = session.Selected[i] ? "✅" : "❌";
+            var matchDesc = bet.Event?.Home != null && bet.Event?.Away != null
+                ? $"{bet.Event.Home} vs {bet.Event.Away}"
+                : "(sans description)";
+            var pick = FormatPick(bet);
+            var tipster = bet.TipsterUsername ?? "inconnu";
+            sb.AppendLine($"{icon} {i + 1}. {matchDesc} — {pick} @ {bet.Price:F2} ({tipster})");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static string FormatPick(PendingBet bet)
+    {
+        var designation = bet.DerivedDesignation;
+        var type = bet.Type;
+
+        // Traduire le type de pari en label court
+        var typeLabel = type switch
+        {
+            "MONEYLINE" => "1X2",
+            "SPREAD" => "Handicap",
+            "TOTAL_POINTS" => "O/U",
+            "TEAM_TOTAL_POINTS" => "Team O/U",
+            _ => type
+        };
+
+        // Récupérer les points (ligne) depuis le market price correspondant
+        var points = bet.Market?.Prices
+            .FirstOrDefault(p => string.Equals(p.Designation, designation, StringComparison.OrdinalIgnoreCase))
+            ?.Points;
+
+        // Traduire la désignation en texte lisible
+        var pickLabel = designation switch
+        {
+            "home" => bet.Event?.Home ?? "Dom.",
+            "away" => bet.Event?.Away ?? "Ext.",
+            "over" => "Over",
+            "under" => "Under",
+            _ => designation ?? "?"
+        };
+
+        // Ajouter les points pour O/U, Handicap, etc.
+        if (points.HasValue)
+            pickLabel += $" {points.Value:G}";
+
+        return $"{typeLabel}: {pickLabel}";
+    }
 }
 

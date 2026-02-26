@@ -2,6 +2,9 @@ using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram;
 using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Telegram.Formatters;
+using Bet2InvestPoster.Tests.Helpers;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using global::Telegram.Bot;
@@ -83,6 +86,7 @@ public class TelegramBotServiceSetCommandsTests
         });
         var authFilter = new AuthorizationFilter(options, NullLogger<AuthorizationFilter>.Instance);
 
+        var services = new ServiceCollection().BuildServiceProvider();
         return new TelegramBotService(
             options,
             authFilter,
@@ -90,6 +94,11 @@ public class TelegramBotServiceSetCommandsTests
             botClient: botClient,
             onboardingService: new FakeOnboardingService(),
             conversationState: new FakeConversationStateService(),
+            previewState: new PreviewStateService(),
+            formatter: new MessageFormatter(),
+            scopeFactory: services.GetRequiredService<IServiceScopeFactory>(),
+            notificationService: new FakeNotificationService(),
+            executionStateService: new ExecutionStateService(),
             logger: NullLogger<TelegramBotService>.Instance);
     }
 

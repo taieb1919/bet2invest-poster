@@ -54,6 +54,7 @@ public class OnboardingServiceTests
         public string FormatScrapedTipstersConfirmation() => "";
         public string FormatReport(List<HistoryEntry> entries, int days) => "";
         public string FormatCycleSuccess(Bet2InvestPoster.Models.CycleResult result) => "";
+        public string FormatPreview(Bet2InvestPoster.Models.PreviewSession session) => "";
     }
 
     private class FakeTipsterService : ITipsterService

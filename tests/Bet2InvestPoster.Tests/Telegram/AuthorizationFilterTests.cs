@@ -2,6 +2,8 @@ using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram;
 using Bet2InvestPoster.Telegram.Commands;
+using Bet2InvestPoster.Telegram.Formatters;
+using Bet2InvestPoster.Tests.Helpers;
 using Bet2InvestPoster.Tests.Telegram.Commands;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -83,6 +85,10 @@ public class AuthorizationFilterTests
         services.AddSingleton<ITelegramBotClient>(_ => new FakeTelegramBotClient());
         services.AddSingleton<IOnboardingService, FakeOnboardingService>();
         services.AddSingleton<IConversationStateService, ConversationStateService>();
+        services.AddSingleton<PreviewStateService>();
+        services.AddSingleton<IMessageFormatter, MessageFormatter>();
+        services.AddSingleton<INotificationService, FakeNotificationService>();
+        services.AddSingleton<IExecutionStateService>(new ExecutionStateService());
         services.AddHostedService<TelegramBotService>();
         services.AddLogging();
 

@@ -121,6 +121,9 @@ builder.Services.AddSingleton<IMessageFormatter, MessageFormatter>();
 // ConversationStateService: Singleton — état de conversation partagé entre tous les scopes.
 builder.Services.AddSingleton<IConversationStateService, ConversationStateService>();
 
+// PreviewStateService: Singleton — stocke les sessions de preview /run par chatId.
+builder.Services.AddSingleton<PreviewStateService>();
+
 // OnboardingService: Singleton — sends onboarding message on first launch.
 builder.Services.AddSingleton<IOnboardingService, OnboardingService>();
 
