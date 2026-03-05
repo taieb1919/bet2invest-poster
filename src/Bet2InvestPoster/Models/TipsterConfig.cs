@@ -22,9 +22,10 @@ public class TipsterConfig
 
     /// <summary>
     /// Numeric user ID resolved from the API. Required for /v1/statistics/{numericId}.
+    /// Cached in tipsters.json to avoid unstable pagination-based resolution.
     /// Set by <see cref="IExtendedBet2InvestClient.ResolveTipsterIdsAsync"/>.
     /// </summary>
-    [JsonIgnore]
+    [JsonPropertyName("numericId")]
     public int NumericId { get; set; }
 
     /// <summary>ROI du tipster (depuis l'API /tipsters). Utilisé pour le scoring intelligent.</summary>

@@ -1,10 +1,70 @@
 [
-  { "url": "https://bet2invest.com/tipsters/performance-stats/NG1", "name": "NG1" },
-  { "url": "https://bet2invest.com/tipsters/performance-stats/Edge_Analytics", "name": "Edge Analytics" },
-  { "url": "https://bet2invest.com/tipsters/performance-stats/Mister_Pep", "name": "Mister Pep" },
-  { "url": "https://bet2invest.com/tipsters/performance-stats/JohnDoe", "name": "JohnDoe" },
-  { "url": "https://bet2invest.com/tipsters/performance-stats/Mr_Realist", "name": "Mr Realist" },
-  { "url": "https://bet2invest.com/tipsters/performance-stats/forzanapoli", "name": "forzanapoli" },
-  { "url": "https://bet2invest.com/tipsters/performance-stats/KINGBET09", "name": "KINGBET09" },
-  { "url": "https://bet2invest.com/tipsters/performance-stats/Omalos", "name": "Omalos" }
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/NG1",
+    "name": "NG1"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/NumeroX",
+    "name": "NumeroX"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/JEX",
+    "name": "JEX"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/DeerProno",
+    "name": "DeerProno"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/Tennisbetting76",
+    "name": "Tennisbetting76"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/Tipingmaster",
+    "name": "Tipingmaster"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/ApgTechno",
+    "name": "ApgTechno"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/CrisGomez",
+    "name": "CrisGomez"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/AC_28",
+    "name": "AC_28"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/WinWinWin",
+    "name": "WinWinWin"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/jackbauer",
+    "name": "jackbauer"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/Shimatta",
+    "name": "Shimatta"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/Tercera",
+    "name": "Tercera"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/Fabi1",
+    "name": "Fabi1"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/BPB08",
+    "name": "BPB08"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/momo",
+    "name": "momo"
+  },
+  {
+    "url": "https://bet2invest.com/tipsters/performance-stats/WinningMentality",
+    "name": "WinningMentality"
+  }
 ]

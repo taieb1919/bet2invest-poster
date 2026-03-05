@@ -58,8 +58,17 @@ public class PostingCycleService : IPostingCycleService
 
             // 2. Tipsters
             var tipsters = await _tipsterService.LoadTipstersAsync(ct);
+            var unresolvedBefore = tipsters.Count(t => t.NumericId == 0);
             await _client.ResolveTipsterIdsAsync(tipsters, ct);
             _executionStateService.SetApiConnectionStatus(true);
+
+            // 2b. Persister les IDs résolus pour éviter la résolution instable à chaque cycle
+            var newlyResolved = unresolvedBefore - tipsters.Count(t => t.NumericId == 0);
+            if (newlyResolved > 0)
+            {
+                await _tipsterService.ReplaceTipstersAsync(tipsters, ct);
+                _logger.LogInformation("{Count} nouveau(x) ID(s) numérique(s) mis en cache dans tipsters.json", newlyResolved);
+            }
 
             // 3. Candidats (avant filtrage — l'utilisateur sélectionne manuellement via preview)
             var candidates = await _upcomingBetsFetcher.FetchAllAsync(tipsters, ct);
@@ -93,8 +102,17 @@ public class PostingCycleService : IPostingCycleService
                 var tipsters = await _tipsterService.LoadTipstersAsync(ct);
 
                 // 2b. Résolution des IDs numériques via l'API /tipsters (auth implicite)
+                var unresolvedBefore = tipsters.Count(t => t.NumericId == 0);
                 await _client.ResolveTipsterIdsAsync(tipsters, ct);
                 _executionStateService.SetApiConnectionStatus(true);
+
+                // 2c. Persister les IDs résolus pour éviter la résolution instable à chaque cycle
+                var newlyResolved = unresolvedBefore - tipsters.Count(t => t.NumericId == 0);
+                if (newlyResolved > 0)
+                {
+                    await _tipsterService.ReplaceTipstersAsync(tipsters, ct);
+                    _logger.LogInformation("{Count} nouveau(x) ID(s) numérique(s) mis en cache dans tipsters.json", newlyResolved);
+                }
 
                 // 3. Récupération des paris à venir (Step="Scrape" géré dans UpcomingBetsFetcher)
                 var candidates = await _upcomingBetsFetcher.FetchAllAsync(tipsters, ct);
