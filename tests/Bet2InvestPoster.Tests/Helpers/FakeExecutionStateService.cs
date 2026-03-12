@@ -10,6 +10,9 @@ public class FakeExecutionStateService : IExecutionStateService
 {
     private string[] _scheduleTimes;
     private bool _schedulingEnabled;
+    private decimal? _minOdds;
+    private decimal? _maxOdds;
+    private string _selectionMode;
     private readonly ExecutionState? _fixedState;
 
     // Tracking SetNextRun
@@ -29,11 +32,17 @@ public class FakeExecutionStateService : IExecutionStateService
     public FakeExecutionStateService(
         string[]? scheduleTimes = null,
         bool schedulingEnabled = true,
-        ExecutionState? fixedState = null)
+        ExecutionState? fixedState = null,
+        decimal? minOdds = null,
+        decimal? maxOdds = null,
+        string selectionMode = "random")
     {
         _scheduleTimes = scheduleTimes ?? ["08:00"];
         _schedulingEnabled = schedulingEnabled;
         _fixedState = fixedState;
+        _minOdds = minOdds;
+        _maxOdds = maxOdds;
+        _selectionMode = selectionMode;
     }
 
     public ExecutionState GetState() =>
@@ -72,4 +81,11 @@ public class FakeExecutionStateService : IExecutionStateService
     public void SetScheduleTimes(string[] times) => _scheduleTimes = times;
     public string GetScheduleTime() => _scheduleTimes.Length > 0 ? _scheduleTimes[0] : "08:00";
     public void SetScheduleTime(string time) => _scheduleTimes = [time];
+
+    // Odds filter & selection mode
+    public decimal? GetMinOdds() => _minOdds;
+    public decimal? GetMaxOdds() => _maxOdds;
+    public string GetSelectionMode() => _selectionMode;
+    public void SetOddsFilter(decimal? minOdds, decimal? maxOdds) { _minOdds = minOdds; _maxOdds = maxOdds; }
+    public void SetSelectionMode(string mode) => _selectionMode = mode;
 }

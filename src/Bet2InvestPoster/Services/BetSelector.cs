@@ -12,13 +12,15 @@ public class BetSelector : IBetSelector
 
     private readonly IHistoryManager _historyManager;
     private readonly PosterOptions _options;
+    private readonly IExecutionStateService _stateService;
     private readonly ILogger<BetSelector> _logger;
     private readonly TimeProvider _timeProvider;
 
-    public BetSelector(IHistoryManager historyManager, IOptions<PosterOptions> posterOptions, ILogger<BetSelector> logger, TimeProvider timeProvider)
+    public BetSelector(IHistoryManager historyManager, IOptions<PosterOptions> posterOptions, IExecutionStateService stateService, ILogger<BetSelector> logger, TimeProvider timeProvider)
     {
         _historyManager = historyManager;
         _options = posterOptions.Value;
+        _stateService = stateService;
         _logger = logger;
         _timeProvider = timeProvider;
     }
@@ -43,15 +45,24 @@ public class BetSelector : IBetSelector
             // Exclure les paris live (seuls les paris prematch sont publiés)
             available = available.Where(b => !b.IsLive).ToList();
 
+            // Lire les valeurs dynamiques (configurables via /odds)
+            var selectionMode = _stateService.GetSelectionMode();
+            var isAllMode = string.Equals(selectionMode, "all", StringComparison.OrdinalIgnoreCase);
+            var dynamicMinOdds = _stateService.GetMinOdds();
+            var dynamicMaxOdds = _stateService.GetMaxOdds();
+
             // Filtrage avancé par cotes et plage horaire (AC: FR35, FR36)
-            // Appliqué AVANT la sélection aléatoire
+            // Appliqué AVANT la sélection aléatoire — sauf en mode "all"
             var beforeFilterCount = available.Count;
 
-            if (_options.MinOdds.HasValue)
-                available = available.Where(b => b.Price >= _options.MinOdds.Value).ToList();
+            if (!isAllMode)
+            {
+                if (dynamicMinOdds.HasValue)
+                    available = available.Where(b => b.Price >= dynamicMinOdds.Value).ToList();
 
-            if (_options.MaxOdds.HasValue)
-                available = available.Where(b => b.Price <= _options.MaxOdds.Value).ToList();
+                if (dynamicMaxOdds.HasValue)
+                    available = available.Where(b => b.Price <= dynamicMaxOdds.Value).ToList();
+            }
 
             if (_options.EventHorizonHours.HasValue)
             {
@@ -62,41 +73,49 @@ public class BetSelector : IBetSelector
             if (beforeFilterCount != available.Count)
             {
                 _logger.LogInformation(
-                    "Filtrage avancé : {Before} → {After} candidats (MinOdds={Min}, MaxOdds={Max}, Horizon={Horizon}h)",
-                    beforeFilterCount, available.Count, _options.MinOdds, _options.MaxOdds, _options.EventHorizonHours);
+                    "Filtrage avancé : {Before} → {After} candidats (MinOdds={Min}, MaxOdds={Max}, Horizon={Horizon}h, Mode={Mode})",
+                    beforeFilterCount, available.Count, dynamicMinOdds, dynamicMaxOdds, _options.EventHorizonHours, selectionMode);
             }
 
-            // AC#2 : cible aléatoire parmi 5, 10, 15
-            var targetCount = ValidCounts[Random.Shared.Next(ValidCounts.Length)];
-
-            // AC#3 : si moins de candidats que la cible, retourner tout ce qui est disponible
             List<PendingBet> selected;
 
-            var isIntelligent = string.Equals(_options.SelectionMode, "intelligent", StringComparison.OrdinalIgnoreCase);
-            var isRandom = string.Equals(_options.SelectionMode, "random", StringComparison.OrdinalIgnoreCase);
-            _logger.LogInformation("Mode de sélection : {Mode}", _options.SelectionMode);
-
-            if (!isIntelligent && !isRandom)
-                _logger.LogWarning("SelectionMode '{Mode}' inconnu, fallback sur random", _options.SelectionMode);
-
-            if (available.Count <= targetCount)
+            if (isAllMode)
             {
+                // Mode "all" : poster tous les pronostics disponibles
                 selected = available;
-            }
-            else if (isIntelligent)
-            {
-                // Mode intelligent : trier par score descendant, prendre les N meilleurs
-                selected = SelectIntelligent(available, targetCount, now);
+                _logger.LogInformation("Mode ALL actif — {Count} pronostics sélectionnés (pas de limite)", selected.Count);
             }
             else
             {
-                selected = available.OrderBy(_ => Random.Shared.Next()).Take(targetCount).ToList();
+                // AC#2 : cible aléatoire parmi 5, 10, 15
+                var targetCount = ValidCounts[Random.Shared.Next(ValidCounts.Length)];
+
+                var isIntelligent = string.Equals(selectionMode, "intelligent", StringComparison.OrdinalIgnoreCase);
+                var isRandom = string.Equals(selectionMode, "random", StringComparison.OrdinalIgnoreCase);
+                _logger.LogInformation("Mode de sélection : {Mode}", selectionMode);
+
+                if (!isIntelligent && !isRandom)
+                    _logger.LogWarning("SelectionMode '{Mode}' inconnu, fallback sur random", selectionMode);
+
+                if (available.Count <= targetCount)
+                {
+                    selected = available;
+                }
+                else if (isIntelligent)
+                {
+                    // Mode intelligent : trier par score descendant, prendre les N meilleurs
+                    selected = SelectIntelligent(available, targetCount, now);
+                }
+                else
+                {
+                    selected = available.OrderBy(_ => Random.Shared.Next()).Take(targetCount).ToList();
+                }
             }
 
             // log Step="Select"
             _logger.LogInformation(
-                "{Available} candidats disponibles (après filtres), {Selected} sélectionnés (cible={Target})",
-                available.Count, selected.Count, targetCount);
+                "{Available} candidats disponibles (après filtres), {Selected} sélectionnés (mode={Mode})",
+                available.Count, selected.Count, selectionMode);
 
             return new SelectionResult { FilteredCount = available.Count, Selected = selected };
         }

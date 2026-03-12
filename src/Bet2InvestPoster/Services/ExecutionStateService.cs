@@ -9,31 +9,44 @@ public class ExecutionStateService : IExecutionStateService
     private ExecutionState _state;
     private readonly string? _schedulingStateFile;
     private readonly string[] _defaultScheduleTimes;
+    private readonly decimal? _defaultMinOdds;
+    private readonly decimal? _defaultMaxOdds;
+    private readonly string _defaultSelectionMode;
     private readonly ILogger<ExecutionStateService> _logger;
 
     public ExecutionStateService(
         string? dataPath = null,
         string defaultScheduleTime = "08:00",
         ILogger<ExecutionStateService>? logger = null,
-        string[]? defaultScheduleTimes = null)
+        string[]? defaultScheduleTimes = null,
+        decimal? defaultMinOdds = null,
+        decimal? defaultMaxOdds = null,
+        string defaultSelectionMode = "random")
     {
         _defaultScheduleTimes = defaultScheduleTimes is { Length: > 0 }
             ? defaultScheduleTimes
             : [defaultScheduleTime];
+        _defaultMinOdds = defaultMinOdds;
+        _defaultMaxOdds = defaultMaxOdds;
+        _defaultSelectionMode = defaultSelectionMode;
         _logger = logger ?? NullLogger<ExecutionStateService>.Instance;
 
         _schedulingStateFile = dataPath is not null
             ? Path.Combine(dataPath, "scheduling-state.json")
             : null;
 
-        var (schedulingEnabled, scheduleTimes) = LoadSchedulingState();
-        _state = new ExecutionState(null, null, null, null, null, schedulingEnabled, scheduleTimes);
+        var persisted = LoadSchedulingState();
+        _state = new ExecutionState(null, null, null, null, null,
+            persisted.Enabled, persisted.ScheduleTimes,
+            persisted.MinOdds, persisted.MaxOdds, persisted.SelectionMode);
     }
 
-    private (bool enabled, string[] scheduleTimes) LoadSchedulingState()
+    private record PersistedState(bool Enabled, string[] ScheduleTimes, decimal? MinOdds, decimal? MaxOdds, string? SelectionMode);
+
+    private PersistedState LoadSchedulingState()
     {
         if (_schedulingStateFile is null || !File.Exists(_schedulingStateFile))
-            return (true, _defaultScheduleTimes);
+            return new(true, _defaultScheduleTimes, _defaultMinOdds, _defaultMaxOdds, _defaultSelectionMode);
 
         try
         {
@@ -45,6 +58,7 @@ public class ExecutionStateService : IExecutionStateService
                 enabled = enabledProp.GetBoolean();
 
             // Nouveau format : array "scheduleTimes"
+            string[] scheduleTimes = _defaultScheduleTimes;
             if (doc.RootElement.TryGetProperty("scheduleTimes", out var timesProp)
                 && timesProp.ValueKind == JsonValueKind.Array)
             {
@@ -54,28 +68,43 @@ public class ExecutionStateService : IExecutionStateService
                     .Select(s => s!)
                     .ToArray();
                 if (times.Length > 0)
-                    return (enabled, times);
+                    scheduleTimes = times;
             }
-
             // Fallback rétrocompatibilité : string "scheduleTime"
-            if (doc.RootElement.TryGetProperty("scheduleTime", out var timeProp))
+            else if (doc.RootElement.TryGetProperty("scheduleTime", out var timeProp))
             {
                 var t = timeProp.GetString();
                 if (!string.IsNullOrWhiteSpace(t))
-                    return (enabled, [t]);
+                    scheduleTimes = [t];
             }
 
-            return (enabled, _defaultScheduleTimes);
+            // Odds filter
+            decimal? minOdds = _defaultMinOdds;
+            decimal? maxOdds = _defaultMaxOdds;
+
+            if (doc.RootElement.TryGetProperty("minOdds", out var minProp) && minProp.ValueKind == JsonValueKind.Number)
+                minOdds = minProp.GetDecimal();
+            if (doc.RootElement.TryGetProperty("maxOdds", out var maxProp) && maxProp.ValueKind == JsonValueKind.Number)
+                maxOdds = maxProp.GetDecimal();
+
+            // Selection mode (rétrocompat: allMode=true → "all")
+            string? selectionMode = _defaultSelectionMode;
+            if (doc.RootElement.TryGetProperty("selectionMode", out var modeProp) && modeProp.ValueKind == JsonValueKind.String)
+                selectionMode = modeProp.GetString();
+            else if (doc.RootElement.TryGetProperty("allMode", out var allProp) && allProp.GetBoolean())
+                selectionMode = "all";
+
+            return new(enabled, scheduleTimes, minOdds, maxOdds, selectionMode);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Impossible de lire scheduling-state.json — valeurs par défaut utilisées");
         }
 
-        return (true, _defaultScheduleTimes);
+        return new(true, _defaultScheduleTimes, _defaultMinOdds, _defaultMaxOdds, _defaultSelectionMode);
     }
 
-    private void PersistSchedulingState(bool enabled, string[] scheduleTimes)
+    private void PersistState()
     {
         if (_schedulingStateFile is null) return;
 
@@ -85,8 +114,18 @@ public class ExecutionStateService : IExecutionStateService
             if (dir is not null)
                 Directory.CreateDirectory(dir);
 
+            ExecutionState snapshot;
+            lock (_lock) { snapshot = _state; }
+
             var tmpFile = _schedulingStateFile + ".tmp";
-            var json = JsonSerializer.Serialize(new { schedulingEnabled = enabled, scheduleTimes });
+            var json = JsonSerializer.Serialize(new
+            {
+                schedulingEnabled = snapshot.SchedulingEnabled,
+                scheduleTimes = snapshot.ScheduleTimes,
+                minOdds = snapshot.MinOdds,
+                maxOdds = snapshot.MaxOdds,
+                selectionMode = snapshot.SelectionMode
+            });
             File.WriteAllText(tmpFile, json);
             File.Move(tmpFile, _schedulingStateFile, overwrite: true);
         }
@@ -150,13 +189,11 @@ public class ExecutionStateService : IExecutionStateService
 
     public void SetSchedulingEnabled(bool enabled)
     {
-        string[] times;
         lock (_lock)
         {
             _state = _state with { SchedulingEnabled = enabled };
-            times = _state.ScheduleTimes;
         }
-        PersistSchedulingState(enabled, times);
+        PersistState();
     }
 
     public string[] GetScheduleTimes()
@@ -166,13 +203,11 @@ public class ExecutionStateService : IExecutionStateService
 
     public void SetScheduleTimes(string[] times)
     {
-        bool enabled;
         lock (_lock)
         {
             _state = _state with { ScheduleTimes = times };
-            enabled = _state.SchedulingEnabled;
         }
-        PersistSchedulingState(enabled, times);
+        PersistState();
     }
 
     // Rétrocompatibilité
@@ -184,5 +219,39 @@ public class ExecutionStateService : IExecutionStateService
     public void SetScheduleTime(string time)
     {
         SetScheduleTimes([time]);
+    }
+
+    // Filtrage par cotes et mode de sélection
+    public decimal? GetMinOdds()
+    {
+        lock (_lock) return _state.MinOdds;
+    }
+
+    public decimal? GetMaxOdds()
+    {
+        lock (_lock) return _state.MaxOdds;
+    }
+
+    public string GetSelectionMode()
+    {
+        lock (_lock) return _state.SelectionMode ?? _defaultSelectionMode;
+    }
+
+    public void SetOddsFilter(decimal? minOdds, decimal? maxOdds)
+    {
+        lock (_lock)
+        {
+            _state = _state with { MinOdds = minOdds, MaxOdds = maxOdds };
+        }
+        PersistState();
+    }
+
+    public void SetSelectionMode(string mode)
+    {
+        lock (_lock)
+        {
+            _state = _state with { SelectionMode = mode };
+        }
+        PersistState();
     }
 }

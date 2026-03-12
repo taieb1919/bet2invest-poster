@@ -249,7 +249,7 @@ public class PostingCycleServiceTests
         var fetcher      = new FakeUpcomingBetsFetcher { BetsToReturn = [new PendingBet { Id = 1 }] };
         var publisher    = new FakeBetPublisher();
         var notification = new FakeNotificationService();
-        var state        = new FakeExecutionStateService();
+        var state        = new FakeExecutionStateService(minOdds: 5.00m);
         var options      = new PosterOptions { MinOdds = 5.00m };
 
         var service = CreateService(

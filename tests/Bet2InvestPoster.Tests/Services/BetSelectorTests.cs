@@ -1,6 +1,7 @@
 using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
+using Bet2InvestPoster.Tests.Helpers;
 using JTDev.Bet2InvestScraper.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -25,12 +26,18 @@ public class BetSelectorTests
         IEnumerable<string>? publishedKeys = null,
         PosterOptions? options = null,
         ILogger<BetSelector>? logger = null,
-        TimeProvider? timeProvider = null)
-        => new(
+        TimeProvider? timeProvider = null,
+        FakeExecutionStateService? stateService = null)
+    {
+        var opts = options ?? new PosterOptions();
+        var state = stateService ?? new FakeExecutionStateService(minOdds: opts.MinOdds, maxOdds: opts.MaxOdds, selectionMode: opts.SelectionMode);
+        return new(
             new FakeHistoryManager(publishedKeys),
-            Options.Create(options ?? new PosterOptions()),
+            Options.Create(opts),
+            state,
             logger ?? NullLogger<BetSelector>.Instance,
             timeProvider ?? TimeProvider.System);
+    }
 
     // ── Tests existants ────────────────────────────────────────────────────
 
@@ -120,6 +127,7 @@ public class BetSelectorTests
             services.AddLogging();
             services.AddSingleton(TimeProvider.System);
             services.Configure<PosterOptions>(o => o.DataPath = tempDir);
+            services.AddSingleton<IExecutionStateService>(new FakeExecutionStateService());
             services.AddScoped<IHistoryManager, HistoryManager>();
             services.AddScoped<IBetSelector, BetSelector>();
 

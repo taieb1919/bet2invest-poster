@@ -15,6 +15,12 @@ public interface IExecutionStateService
     // Rétrocompatibilité (délèguent vers ScheduleTimes)
     string GetScheduleTime();
     void SetScheduleTime(string time);
+    // Filtrage par cotes et mode de sélection
+    decimal? GetMinOdds();
+    decimal? GetMaxOdds();
+    string GetSelectionMode();
+    void SetOddsFilter(decimal? minOdds, decimal? maxOdds);
+    void SetSelectionMode(string mode);
 }
 
 public record ExecutionState(
@@ -24,7 +30,10 @@ public record ExecutionState(
     DateTimeOffset? NextRunAt,
     bool? ApiConnected,
     bool SchedulingEnabled = true,
-    string[]? ScheduleTimes = null
+    string[]? ScheduleTimes = null,
+    decimal? MinOdds = null,
+    decimal? MaxOdds = null,
+    string? SelectionMode = null
 )
 {
     private static readonly string[] DefaultTimes = ["08:00", "13:00", "19:00"];

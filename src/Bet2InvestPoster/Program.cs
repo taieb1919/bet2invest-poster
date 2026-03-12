@@ -112,7 +112,7 @@ builder.Services.AddSingleton<IExecutionStateService>(sp =>
 {
     var opts = sp.GetRequiredService<IOptions<PosterOptions>>().Value;
     var logger = sp.GetRequiredService<ILogger<ExecutionStateService>>();
-    return new ExecutionStateService(opts.DataPath, opts.ScheduleTime, logger, opts.GetEffectiveScheduleTimes());
+    return new ExecutionStateService(opts.DataPath, opts.ScheduleTime, logger, opts.GetEffectiveScheduleTimes(), opts.MinOdds, opts.MaxOdds, opts.SelectionMode);
 });
 
 // MessageFormatter: Singleton — formats Telegram status messages.
@@ -136,6 +136,7 @@ builder.Services.AddSingleton<ICommandHandler, HistoryCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, ScheduleCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, TipstersCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, ReportCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, OddsCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, HelpCommandHandler>();
 
 // TelegramBotService: HostedService — bot long polling running in background.

@@ -176,17 +176,24 @@ public class PostingCycleService : IPostingCycleService
     }
 
     private bool HasActiveFilters()
-        => _options.MinOdds.HasValue || _options.MaxOdds.HasValue || _options.EventHorizonHours.HasValue;
+    {
+        if (string.Equals(_executionStateService.GetSelectionMode(), "all", StringComparison.OrdinalIgnoreCase)) return false;
+        return _executionStateService.GetMinOdds().HasValue
+            || _executionStateService.GetMaxOdds().HasValue
+            || _options.EventHorizonHours.HasValue;
+    }
 
     private string BuildFilterDetails()
     {
+        var minOdds = _executionStateService.GetMinOdds();
+        var maxOdds = _executionStateService.GetMaxOdds();
         var parts = new List<string>();
-        if (_options.MinOdds.HasValue && _options.MaxOdds.HasValue)
-            parts.Add($"cotes: {_options.MinOdds.Value:F2}-{_options.MaxOdds.Value:F2}");
-        else if (_options.MinOdds.HasValue)
-            parts.Add($"cotes min: {_options.MinOdds.Value:F2}");
-        else if (_options.MaxOdds.HasValue)
-            parts.Add($"cotes max: {_options.MaxOdds.Value:F2}");
+        if (minOdds.HasValue && maxOdds.HasValue)
+            parts.Add($"cotes: {minOdds.Value:F2}-{maxOdds.Value:F2}");
+        else if (minOdds.HasValue)
+            parts.Add($"cotes min: {minOdds.Value:F2}");
+        else if (maxOdds.HasValue)
+            parts.Add($"cotes max: {maxOdds.Value:F2}");
         if (_options.EventHorizonHours.HasValue)
             parts.Add($"horizon: {_options.EventHorizonHours.Value}h");
 

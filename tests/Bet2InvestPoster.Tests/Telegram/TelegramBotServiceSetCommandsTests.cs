@@ -114,7 +114,7 @@ public class TelegramBotServiceSetCommandsTests
     // ─── Tests ────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task ExecuteAsync_AppelleSetMyCommandsAvec9Commandes()
+    public async Task ExecuteAsync_AppelleSetMyCommandsAvec10Commandes()
     {
         var bot = new FakeSetCommandsBotClient();
         var svc = CreateService(bot);
@@ -122,7 +122,7 @@ public class TelegramBotServiceSetCommandsTests
         await RunServiceBrieflyAsync(svc);
 
         Assert.Single(bot.CapturedCommands);
-        Assert.Equal(9, bot.CapturedCommands[0].Length);
+        Assert.Equal(10, bot.CapturedCommands[0].Length);
     }
 
     [Fact]

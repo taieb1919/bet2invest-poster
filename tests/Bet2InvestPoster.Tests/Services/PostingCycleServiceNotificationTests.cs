@@ -245,5 +245,10 @@ public class PostingCycleServiceNotificationTests
         public void SetScheduleTimes(string[] times) { }
         public string GetScheduleTime() => "08:00";
         public void SetScheduleTime(string time) { }
+        public decimal? GetMinOdds() => null;
+        public decimal? GetMaxOdds() => null;
+        public string GetSelectionMode() => "random";
+        public void SetOddsFilter(decimal? minOdds, decimal? maxOdds) { }
+        public void SetSelectionMode(string mode) { }
     }
 }

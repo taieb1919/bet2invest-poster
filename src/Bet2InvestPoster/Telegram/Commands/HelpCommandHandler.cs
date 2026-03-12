@@ -16,6 +16,7 @@ public class HelpCommandHandler : ICommandHandler
         "/schedule [HH:mm,...] — Configurer les horaires d'exécution\n" +
         "/tipsters — Gérer la liste des tipsters\n" +
         "/report [jours] — Tableau de bord des performances\n" +
+        "/odds [min max | all | reset] — Configurer le filtrage par cotes\n" +
         "/help — Afficher cette aide";
 
     public bool CanHandle(string command) => command == "/help";
