@@ -1,70 +1,72 @@
 [
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/NG1",
-    "name": "NG1"
+    "name": "NG1",
+    "numericId": 18310
   },
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/NumeroX",
-    "name": "NumeroX"
+    "name": "NumeroX",
+    "numericId": 372
   },
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/JEX",
-    "name": "JEX"
+    "name": "JEX",
+    "numericId": 12946
   },
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/DeerProno",
-    "name": "DeerProno"
+    "name": "DeerProno",
+    "numericId": 548
   },
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/Tennisbetting76",
-    "name": "Tennisbetting76"
+    "name": "Tennisbetting76",
+    "numericId": 14789
   },
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/Tipingmaster",
-    "name": "Tipingmaster"
+    "name": "Tipingmaster",
+    "numericId": 19278
   },
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/ApgTechno",
-    "name": "ApgTechno"
+    "name": "ApgTechno",
+    "numericId": 17920
   },
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/CrisGomez",
-    "name": "CrisGomez"
+    "name": "CrisGomez",
+    "numericId": 19544
   },
   {
-    "url": "https://bet2invest.com/tipsters/performance-stats/AC_28",
-    "name": "AC_28"
+    "url": "https://bet2invest.fr/tipsters/performance-stats/jackbauer",
+    "name": "jackbauer",
+    "numericId": 604
   },
   {
-    "url": "https://bet2invest.com/tipsters/performance-stats/WinWinWin",
-    "name": "WinWinWin"
+    "url": "https://bet2invest.fr/tipsters/performance-stats/Tercera",
+    "name": "Tercera",
+    "numericId": 19564
   },
   {
-    "url": "https://bet2invest.com/tipsters/performance-stats/jackbauer",
-    "name": "jackbauer"
+    "url": "https://bet2invest.fr/tipsters/performance-stats/Fabi1",
+    "name": "Fabi1",
+    "numericId": 1395
   },
   {
-    "url": "https://bet2invest.com/tipsters/performance-stats/Shimatta",
-    "name": "Shimatta"
+    "url": "https://bet2invest.fr/tipsters/performance-stats/BPB08",
+    "name": "BPB08",
+    "numericId": 117
   },
   {
-    "url": "https://bet2invest.com/tipsters/performance-stats/Tercera",
-    "name": "Tercera"
+    "url": "https://bet2invest.fr/tipsters/performance-stats/momo",
+    "name": "momo",
+    "numericId": 51
   },
   {
-    "url": "https://bet2invest.com/tipsters/performance-stats/Fabi1",
-    "name": "Fabi1"
-  },
-  {
-    "url": "https://bet2invest.com/tipsters/performance-stats/BPB08",
-    "name": "BPB08"
-  },
-  {
-    "url": "https://bet2invest.com/tipsters/performance-stats/momo",
-    "name": "momo"
-  },
-  {
-    "url": "https://bet2invest.com/tipsters/performance-stats/WinningMentality",
-    "name": "WinningMentality"
+    "url": "https://bet2invest.fr/tipsters/performance-stats/WinningMentality",
+    "name": "WinningMentality",
+    "numericId": 10130
   }
 ]
