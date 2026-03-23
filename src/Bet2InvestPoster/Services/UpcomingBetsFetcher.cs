@@ -69,6 +69,24 @@ public class UpcomingBetsFetcher : IUpcomingBetsFetcher
                             bet.TipsterSport = tipster.MostBetSport;
                         }
 
+                        // Filtrer les marchés exclus pour ce tipster
+                        if (tipster.ExcludedMarkets is { Count: > 0 })
+                        {
+                            var before = bets.Count;
+                            bets = bets
+                                .Where(b => b.Market == null || !tipster.ExcludedMarkets.Any(
+                                    prefix => b.Market.Key.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+                                .ToList();
+
+                            if (bets.Count < before)
+                            {
+                                _logger.LogInformation(
+                                    "Tipster {Name} : {Excluded} paris exclus par filtre marché ({Prefixes})",
+                                    tipster.Name, before - bets.Count,
+                                    string.Join(", ", tipster.ExcludedMarkets));
+                            }
+                        }
+
                         allBets.AddRange(bets);
                     }
                 }

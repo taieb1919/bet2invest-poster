@@ -50,7 +50,13 @@ public class MessageFormatter : IMessageFormatter
 
         for (var i = 0; i < tipsters.Count; i++)
         {
-            sb.AppendLine($"{i + 1}. {tipsters[i].Name} — {tipsters[i].Url} (free)");
+            var t = tipsters[i];
+            sb.AppendLine($"{i + 1}. {t.Name} — {t.Url} (free)");
+
+            if (t.ExcludedMarkets is { Count: > 0 })
+            {
+                sb.AppendLine($"   🚫 Marchés exclus : {string.Join(", ", t.ExcludedMarkets)}");
+            }
         }
 
         sb.AppendLine();

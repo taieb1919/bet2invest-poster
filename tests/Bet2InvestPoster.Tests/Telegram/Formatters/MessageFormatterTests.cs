@@ -188,4 +188,20 @@ public class MessageFormatterTests
         Assert.Contains("1 tipster", result);
         Assert.DoesNotContain("1 tipsters", result);
     }
+
+    [Fact]
+    public void FormatTipsters_WithExcludedMarkets_DisplaysExclusions()
+    {
+        var tipsters = new List<TipsterConfig>
+        {
+            new() { Name = "Tipingmaster", Url = "https://bet2invest.com/tipsters/performance-stats/Tipingmaster", ExcludedMarkets = ["s;0;ou;2.5"] },
+            new() { Name = "NG1", Url = "https://bet2invest.com/tipsters/performance-stats/NG1" }
+        };
+
+        var result = _formatter.FormatTipsters(tipsters);
+
+        Assert.Contains("🚫 Marchés exclus : s;0;ou;2.5", result);
+        // NG1 sans exclusion ne doit pas afficher la ligne
+        Assert.DoesNotContain("NG1\n   🚫", result);
+    }
 }

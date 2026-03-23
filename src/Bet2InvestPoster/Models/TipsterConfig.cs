@@ -28,6 +28,13 @@ public class TipsterConfig
     [JsonPropertyName("numericId")]
     public int NumericId { get; set; }
 
+    /// <summary>
+    /// Market key prefixes to exclude for this tipster.
+    /// Uses prefix matching: "s;0;ou" excludes all Over/Under, "s;0;ou;2.5" excludes only O/U 2.5.
+    /// </summary>
+    [JsonPropertyName("excludedMarkets")]
+    public List<string>? ExcludedMarkets { get; set; }
+
     /// <summary>ROI du tipster (depuis l'API /tipsters). Utilisé pour le scoring intelligent.</summary>
     [JsonIgnore]
     public decimal? Roi { get; set; }

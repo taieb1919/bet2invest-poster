@@ -27,7 +27,8 @@
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/Tipingmaster",
     "name": "Tipingmaster",
-    "numericId": 19278
+    "numericId": 19278,
+    "excludedMarkets": ["s;0;ou;2.5"]
   },
   {
     "url": "https://bet2invest.com/tipsters/performance-stats/ApgTechno",
@@ -57,7 +58,8 @@
   {
     "url": "https://bet2invest.fr/tipsters/performance-stats/BPB08",
     "name": "BPB08",
-    "numericId": 117
+    "numericId": 117,
+    "excludedMarkets": ["s;0;m", "s;0;s;-1.5"]
   },
   {
     "url": "https://bet2invest.fr/tipsters/performance-stats/momo",

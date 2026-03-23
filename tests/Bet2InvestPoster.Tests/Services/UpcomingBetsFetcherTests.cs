@@ -34,6 +34,12 @@ public class UpcomingBetsFetcherTests
 
     private static PendingBet MakeBet(int id) => new PendingBet { Id = id };
 
+    private static PendingBet MakeBetWithMarket(int id, string marketKey) => new PendingBet
+    {
+        Id = id,
+        Market = new PendingBetMarket { Key = marketKey, MatchupId = $"m{id}" }
+    };
+
     // ─── 5.3: Happy path — multiple tipsters, aggregated bets ──────
 
     [Fact]
@@ -212,6 +218,88 @@ public class UpcomingBetsFetcherTests
         Assert.Equal(42m, resultBet.TipsterWinRate);   // BetsNumber converti en decimal
         Assert.Equal("Football", resultBet.TipsterSport);
         Assert.Equal("Cristiano", resultBet.TipsterUsername); // Name, pas le slug
+    }
+
+    // ─── ExcludedMarkets : filtre par type de marché ────────────────
+
+    [Fact]
+    public async Task FetchAllAsync_ExcludedMarkets_FiltersBetsByMarketKeyPrefix()
+    {
+        var fake = new FakeExtendedBet2InvestClient();
+        fake.Setup(901, canSeeBets: true, bets:
+        [
+            MakeBetWithMarket(1, "s;0;ou;2.5"),   // excluded
+            MakeBetWithMarket(2, "s;0;ou;3.5"),   // kept (prefix doesn't match exactly)
+            MakeBetWithMarket(3, "s;0;m"),         // kept
+        ]);
+
+        var tipster = MakeTipster("Tiping", numericId: 901);
+        tipster.ExcludedMarkets = ["s;0;ou;2.5"];
+
+        var result = await CreateFetcher(fake).FetchAllAsync([tipster]);
+
+        Assert.Equal(2, result.Count);
+        Assert.DoesNotContain(result, b => b.Id == 1);
+        Assert.Contains(result, b => b.Id == 2);
+        Assert.Contains(result, b => b.Id == 3);
+    }
+
+    [Fact]
+    public async Task FetchAllAsync_ExcludedMarkets_PrefixMatchExcludesMultipleKeys()
+    {
+        var fake = new FakeExtendedBet2InvestClient();
+        fake.Setup(902, canSeeBets: true, bets:
+        [
+            MakeBetWithMarket(1, "s;0;ou;2.5"),   // excluded by prefix
+            MakeBetWithMarket(2, "s;0;ou;3.5"),   // excluded by prefix
+            MakeBetWithMarket(3, "s;0;m"),         // excluded exact
+            MakeBetWithMarket(4, "s;0;s;-1.5"),   // kept
+        ]);
+
+        var tipster = MakeTipster("BPB", numericId: 902);
+        tipster.ExcludedMarkets = ["s;0;ou", "s;0;m"];
+
+        var result = await CreateFetcher(fake).FetchAllAsync([tipster]);
+
+        Assert.Single(result);
+        Assert.Equal(4, result[0].Id);
+    }
+
+    [Fact]
+    public async Task FetchAllAsync_NoExcludedMarkets_KeepsAllBets()
+    {
+        var fake = new FakeExtendedBet2InvestClient();
+        fake.Setup(903, canSeeBets: true, bets:
+        [
+            MakeBetWithMarket(1, "s;0;ou;2.5"),
+            MakeBetWithMarket(2, "s;0;m"),
+        ]);
+
+        var tipster = MakeTipster("Clean", numericId: 903);
+        // No excludedMarkets set
+
+        var result = await CreateFetcher(fake).FetchAllAsync([tipster]);
+
+        Assert.Equal(2, result.Count);
+    }
+
+    [Fact]
+    public async Task FetchAllAsync_ExcludedMarkets_BetWithoutMarket_NotFiltered()
+    {
+        var fake = new FakeExtendedBet2InvestClient();
+        fake.Setup(904, canSeeBets: true, bets:
+        [
+            MakeBet(1),  // no Market object
+            MakeBetWithMarket(2, "s;0;m"),  // excluded
+        ]);
+
+        var tipster = MakeTipster("Mixed", numericId: 904);
+        tipster.ExcludedMarkets = ["s;0;m"];
+
+        var result = await CreateFetcher(fake).FetchAllAsync([tipster]);
+
+        Assert.Single(result);
+        Assert.Equal(1, result[0].Id);
     }
 
     // ─── Stub ──────────────────────────────────────────────────────
