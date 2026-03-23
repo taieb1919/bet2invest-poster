@@ -96,6 +96,7 @@ public class TelegramBotService : BackgroundService
                 var commands = new BotCommand[]
                 {
                     new() { Command = "run",      Description = "Exécuter un cycle de publication" },
+                    new() { Command = "mystats",  Description = "Statistiques globales détaillées" },
                     new() { Command = "status",   Description = "Afficher l'état du système" },
                     new() { Command = "start",    Description = "Activer le scheduling automatique" },
                     new() { Command = "stop",     Description = "Suspendre le scheduling automatique" },
@@ -104,7 +105,6 @@ public class TelegramBotService : BackgroundService
                     new() { Command = "tipsters", Description = "Gérer la liste des tipsters" },
                     new() { Command = "report",   Description = "Tableau de bord des performances [jours]" },
                     new() { Command = "odds",     Description = "Configurer le filtrage par cotes [min max | all | reset]" },
-                    new() { Command = "mystats",  Description = "Statistiques globales détaillées" },
                     new() { Command = "help",     Description = "Afficher cette aide" },
                 };
                 await _botClient.SetMyCommands(commands: commands, cancellationToken: stoppingToken);
