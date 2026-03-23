@@ -87,6 +87,8 @@ public class ResultTrackerTests
             if (ShouldThrow) throw new HttpRequestException("Simulated API failure");
             return Task.FromResult(SettledBetsToReturn);
         }
+        public Task<Models.UserStats> GetUserStatsAsync(CancellationToken ct = default)
+            => Task.FromResult(new Models.UserStats());
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────

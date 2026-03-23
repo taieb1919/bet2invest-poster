@@ -208,51 +208,51 @@ public class MessageFormatterTests
     // --- FormatMyStats ---
 
     [Fact]
-    public void FormatMyStats_EmptyList_ReturnsAucuneDonneeMessage()
+    public void FormatMyStats_DisplaysRealApiStats()
     {
-        var result = _formatter.FormatMyStats([]);
-
-        Assert.Equal("📭 Aucune donnée dans l'historique.", result);
-    }
-
-    [Fact]
-    public void FormatMyStats_WithEntries_ContainsGlobalSummary()
-    {
-        var entries = new List<HistoryEntry>
+        var stats = new UserStats
         {
-            new() { BetId = 1, Result = "won", Odds = 2.0m, Sport = "Soccer", TipsterName = "Alice", MarketKey = "s;0;m", PublishedAt = new DateTime(2026, 3, 1) },
-            new() { BetId = 2, Result = "lost", Odds = 1.5m, Sport = "Soccer", TipsterName = "Alice", MarketKey = "s;0;m", PublishedAt = new DateTime(2026, 3, 2) },
-            new() { BetId = 3, Result = "won", Odds = 2.5m, Sport = "Tennis", TipsterName = "Bob", MarketKey = "s;0;ou;2.5", PublishedAt = new DateTime(2026, 3, 3) },
+            General = new UserStatsGeneral
+            {
+                BetsNumber = 316,
+                SettledBetsNumber = 316,
+                Roi = -0.92m,
+                Profit = -2.90m,
+                AveragePrice = 1.95m,
+                AverageBetMax = 4100m,
+                Clv = 0.32m,
+                MostBetSport = "soccer",
+                MostBetType = "SPREAD",
+                MaxDrawdown = -19.97m,
+                FlatStakeProfit = 0.12m,
+                FlatRoi = 0.04m
+            },
+            BettingSummary = new UserStatsBettingSummary
+            {
+                Won = 146,
+                HalfWon = 5,
+                Lost = 146,
+                HalfLost = 4,
+                Refunded = 15
+            },
+            Bets = new UserStatsBets { PendingNumber = 3 }
         };
 
-        var result = _formatter.FormatMyStats(entries);
+        var result = _formatter.FormatMyStats(stats);
 
-        Assert.Contains("📊 Mes statistiques globales", result);
-        Assert.Contains("Winrate : 66.7%", result);
-        Assert.Contains("2 ✅", result);
-        Assert.Contains("1 ❌", result);
-        Assert.Contains("👤 Par tipster", result);
-        Assert.Contains("Alice", result);
-        Assert.Contains("Bob", result);
-        Assert.Contains("🎯 Par type de pronostic", result);
-        Assert.Contains("1X2", result);
-        Assert.Contains("Over/Under", result);
-        Assert.Contains("⚽ Par sport", result);
-        Assert.Contains("Soccer", result);
-        Assert.Contains("Tennis", result);
-    }
-
-    [Fact]
-    public void FormatMyStats_OnlyPending_ReturnsAucuneDonneeResolue()
-    {
-        var entries = new List<HistoryEntry>
-        {
-            new() { BetId = 1, Result = "pending", PublishedAt = new DateTime(2026, 3, 1) },
-        };
-
-        var result = _formatter.FormatMyStats(entries);
-
-        Assert.Contains("Winrate : 0.0%", result);
-        Assert.Contains("En attente : 1", result);
+        Assert.Contains("📊 Mes statistiques (bet2invest)", result);
+        Assert.Contains("Paris total : 316", result);
+        Assert.Contains("Profit : -2.90u", result);
+        Assert.Contains("ROI : -0.92%", result);
+        Assert.Contains("Cote moyenne : 1.95", result);
+        Assert.Contains("CLV : +0.32%", result);
+        Assert.Contains("Gagnés : 146", result);
+        Assert.Contains("Gagnés à moitié : 5", result);
+        Assert.Contains("Perdus : 146", result);
+        Assert.Contains("Perdus à moitié : 4", result);
+        Assert.Contains("Remboursés : 15", result);
+        Assert.Contains("En attente : 3", result);
+        Assert.Contains("Handicap", result);
+        Assert.Contains("soccer", result);
     }
 }

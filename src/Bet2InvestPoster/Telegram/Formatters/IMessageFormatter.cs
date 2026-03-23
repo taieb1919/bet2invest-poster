@@ -14,5 +14,5 @@ public interface IMessageFormatter
     string FormatReport(List<HistoryEntry> entries, int days);
     string FormatCycleSuccess(CycleResult result);
     string FormatPreview(PreviewSession session);
-    string FormatMyStats(List<HistoryEntry> entries);
+    string FormatMyStats(UserStats stats);
 }

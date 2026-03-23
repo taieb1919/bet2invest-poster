@@ -55,7 +55,7 @@ public class OnboardingServiceTests
         public string FormatReport(List<HistoryEntry> entries, int days) => "";
         public string FormatCycleSuccess(Bet2InvestPoster.Models.CycleResult result) => "";
         public string FormatPreview(Bet2InvestPoster.Models.PreviewSession session) => "";
-        public string FormatMyStats(List<HistoryEntry> entries) => "";
+        public string FormatMyStats(UserStats stats) => "";
     }
 
     private class FakeTipsterService : ITipsterService
@@ -106,6 +106,8 @@ public class OnboardingServiceTests
             Task.FromResult(new List<ScrapedTipster>());
         public Task<List<JTDev.Bet2InvestScraper.Models.SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default) =>
             Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
+        public Task<Models.UserStats> GetUserStatsAsync(CancellationToken ct = default) =>
+            Task.FromResult(new Models.UserStats());
     }
 
     // --- Helpers ---

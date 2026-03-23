@@ -430,6 +430,65 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
         }
     }
 
+    // ─── User Stats (GET /v1/statistics/{userId}) ─────────────────
+
+    public async Task<UserStats> GetUserStatsAsync(CancellationToken ct = default)
+    {
+        await EnsureAuthenticatedAsync(ct);
+
+        using (LogContext.PushProperty("Step", "Stats"))
+        {
+            var userId = ExtractUserIdFromToken();
+            if (userId == null)
+                throw new Bet2InvestApiException("/v1/statistics", 0, "Impossible d'extraire le userId du JWT token");
+
+            await Task.Delay(_options.RequestDelayMs, ct);
+
+            var url = $"/v1/statistics/{userId}";
+            var response = await _http.GetAsync(url, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                throw new Bet2InvestApiException(url, (int)response.StatusCode, errorBody);
+            }
+
+            var stats = await response.Content.ReadFromJsonAsync<UserStats>(JsonOptions, ct);
+            _logger.LogInformation(
+                "Stats utilisateur récupérées : {Bets} paris, ROI {Roi}%, Profit {Profit}",
+                stats?.General.BetsNumber, stats?.General.Roi, stats?.General.Profit);
+
+            return stats ?? new UserStats();
+        }
+    }
+
+    private int? ExtractUserIdFromToken()
+    {
+        if (string.IsNullOrEmpty(_accessToken))
+            return null;
+
+        try
+        {
+            var parts = _accessToken.Split('.');
+            if (parts.Length < 2) return null;
+
+            var payload = parts[1];
+            // Pad base64
+            payload += new string('=', (4 - payload.Length % 4) % 4);
+            var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(payload));
+            using var doc = JsonDocument.Parse(json);
+
+            if (doc.RootElement.TryGetProperty("sub", out var sub))
+                return sub.GetInt32();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Impossible de décoder le JWT token pour extraire le userId");
+        }
+
+        return null;
+    }
+
     // ─── Cleanup ───────────────────────────────────────────────────
 
     public void Dispose()

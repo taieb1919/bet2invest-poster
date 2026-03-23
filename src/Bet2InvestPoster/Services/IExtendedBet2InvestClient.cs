@@ -43,4 +43,10 @@ public interface IExtendedBet2InvestClient
     /// </summary>
     Task<List<SettledBet>> GetSettledBetsForTipsterAsync(
         int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default);
+
+    /// <summary>
+    /// Retourne les statistiques globales de l'utilisateur connecté depuis GET /v1/statistics/{userId}.
+    /// Le userId est extrait du JWT token.
+    /// </summary>
+    Task<Models.UserStats> GetUserStatsAsync(CancellationToken ct = default);
 }

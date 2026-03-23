@@ -31,6 +31,8 @@ public class PostingCycleServiceTests
             => Task.FromResult(new List<ScrapedTipster>());
         public Task<List<JTDev.Bet2InvestScraper.Models.SettledBet>> GetSettledBetsForTipsterAsync(int numericId, DateTime startDate, DateTime endDate, CancellationToken ct = default)
             => Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
+        public Task<Models.UserStats> GetUserStatsAsync(CancellationToken ct = default)
+            => Task.FromResult(new Models.UserStats());
     }
 
     private sealed class FakeHistoryManager : IHistoryManager

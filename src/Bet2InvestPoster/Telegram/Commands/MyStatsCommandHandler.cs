@@ -1,5 +1,6 @@
 using Bet2InvestPoster.Services;
 using Bet2InvestPoster.Telegram.Formatters;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Serilog.Context;
 using Telegram.Bot;
@@ -9,16 +10,16 @@ namespace Bet2InvestPoster.Telegram.Commands;
 
 public class MyStatsCommandHandler : ICommandHandler
 {
-    private readonly IHistoryManager _historyManager;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly IMessageFormatter _formatter;
     private readonly ILogger<MyStatsCommandHandler> _logger;
 
     public MyStatsCommandHandler(
-        IHistoryManager historyManager,
+        IServiceScopeFactory scopeFactory,
         IMessageFormatter formatter,
         ILogger<MyStatsCommandHandler> logger)
     {
-        _historyManager = historyManager;
+        _scopeFactory = scopeFactory;
         _formatter = formatter;
         _logger = logger;
     }
@@ -33,10 +34,24 @@ public class MyStatsCommandHandler : ICommandHandler
         {
             _logger.LogInformation("Commande /mystats reçue");
 
-            var entries = await _historyManager.GetEntriesSinceAsync(DateTime.MinValue, ct);
-            var text = _formatter.FormatMyStats(entries);
+            await bot.SendMessage(chatId, "⏳ Récupération des stats...", cancellationToken: ct);
 
-            await bot.SendMessage(chatId, text, cancellationToken: ct);
+            try
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var client = scope.ServiceProvider.GetRequiredService<IExtendedBet2InvestClient>();
+                var stats = await client.GetUserStatsAsync(ct);
+                var text = _formatter.FormatMyStats(stats);
+
+                await bot.SendMessage(chatId, text, cancellationToken: ct);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erreur lors de la récupération des stats");
+                await bot.SendMessage(chatId,
+                    $"❌ Erreur : {ex.GetType().Name} — {ex.Message}",
+                    cancellationToken: ct);
+            }
         }
     }
 }
