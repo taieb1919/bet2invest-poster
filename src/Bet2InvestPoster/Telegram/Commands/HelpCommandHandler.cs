@@ -17,6 +17,7 @@ public class HelpCommandHandler : ICommandHandler
         "/tipsters — Gérer la liste des tipsters\n" +
         "/report [jours] — Tableau de bord des performances\n" +
         "/odds [min max | all | reset] — Configurer le filtrage par cotes\n" +
+        "/mystats — Statistiques globales détaillées\n" +
         "/help — Afficher cette aide";
 
     public bool CanHandle(string command) => command == "/help";

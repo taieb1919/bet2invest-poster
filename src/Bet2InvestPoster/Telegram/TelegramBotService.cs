@@ -104,6 +104,7 @@ public class TelegramBotService : BackgroundService
                     new() { Command = "tipsters", Description = "Gérer la liste des tipsters" },
                     new() { Command = "report",   Description = "Tableau de bord des performances [jours]" },
                     new() { Command = "odds",     Description = "Configurer le filtrage par cotes [min max | all | reset]" },
+                    new() { Command = "mystats",  Description = "Statistiques globales détaillées" },
                     new() { Command = "help",     Description = "Afficher cette aide" },
                 };
                 await _botClient.SetMyCommands(commands: commands, cancellationToken: stoppingToken);

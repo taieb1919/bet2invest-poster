@@ -122,7 +122,7 @@ public class TelegramBotServiceSetCommandsTests
         await RunServiceBrieflyAsync(svc);
 
         Assert.Single(bot.CapturedCommands);
-        Assert.Equal(10, bot.CapturedCommands[0].Length);
+        Assert.Equal(11, bot.CapturedCommands[0].Length);
     }
 
     [Fact]

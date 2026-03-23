@@ -204,4 +204,55 @@ public class MessageFormatterTests
         // NG1 sans exclusion ne doit pas afficher la ligne
         Assert.DoesNotContain("NG1\n   🚫", result);
     }
+
+    // --- FormatMyStats ---
+
+    [Fact]
+    public void FormatMyStats_EmptyList_ReturnsAucuneDonneeMessage()
+    {
+        var result = _formatter.FormatMyStats([]);
+
+        Assert.Equal("📭 Aucune donnée dans l'historique.", result);
+    }
+
+    [Fact]
+    public void FormatMyStats_WithEntries_ContainsGlobalSummary()
+    {
+        var entries = new List<HistoryEntry>
+        {
+            new() { BetId = 1, Result = "won", Odds = 2.0m, Sport = "Soccer", TipsterName = "Alice", MarketKey = "s;0;m", PublishedAt = new DateTime(2026, 3, 1) },
+            new() { BetId = 2, Result = "lost", Odds = 1.5m, Sport = "Soccer", TipsterName = "Alice", MarketKey = "s;0;m", PublishedAt = new DateTime(2026, 3, 2) },
+            new() { BetId = 3, Result = "won", Odds = 2.5m, Sport = "Tennis", TipsterName = "Bob", MarketKey = "s;0;ou;2.5", PublishedAt = new DateTime(2026, 3, 3) },
+        };
+
+        var result = _formatter.FormatMyStats(entries);
+
+        Assert.Contains("📊 Mes statistiques globales", result);
+        Assert.Contains("Winrate : 66.7%", result);
+        Assert.Contains("2 ✅", result);
+        Assert.Contains("1 ❌", result);
+        Assert.Contains("👤 Par tipster", result);
+        Assert.Contains("Alice", result);
+        Assert.Contains("Bob", result);
+        Assert.Contains("🎯 Par type de pronostic", result);
+        Assert.Contains("1X2", result);
+        Assert.Contains("Over/Under", result);
+        Assert.Contains("⚽ Par sport", result);
+        Assert.Contains("Soccer", result);
+        Assert.Contains("Tennis", result);
+    }
+
+    [Fact]
+    public void FormatMyStats_OnlyPending_ReturnsAucuneDonneeResolue()
+    {
+        var entries = new List<HistoryEntry>
+        {
+            new() { BetId = 1, Result = "pending", PublishedAt = new DateTime(2026, 3, 1) },
+        };
+
+        var result = _formatter.FormatMyStats(entries);
+
+        Assert.Contains("Winrate : 0.0%", result);
+        Assert.Contains("En attente : 1", result);
+    }
 }

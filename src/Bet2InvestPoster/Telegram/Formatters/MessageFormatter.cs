@@ -297,6 +297,136 @@ public class MessageFormatter : IMessageFormatter
         return sb.ToString().TrimEnd();
     }
 
+    public string FormatMyStats(List<HistoryEntry> entries)
+    {
+        if (entries.Count == 0)
+            return "📭 Aucune donnée dans l'historique.";
+
+        var resolved = entries.Where(e => e.Result is "won" or "lost").ToList();
+        var won = resolved.Where(e => e.Result == "won").ToList();
+        var lost = resolved.Where(e => e.Result == "lost").ToList();
+        var pending = entries.Where(e => e.Result is "pending" or null).ToList();
+        var voidEntries = entries.Where(e => e.Result == "void").ToList();
+
+        var sb = new StringBuilder();
+        sb.AppendLine("📊 Mes statistiques globales");
+        sb.AppendLine();
+
+        // Période couverte
+        var minDate = entries.Min(e => e.PublishedAt);
+        var maxDate = entries.Max(e => e.PublishedAt);
+        sb.AppendLine($"📅 Période : {minDate:dd/MM/yyyy} → {maxDate:dd/MM/yyyy}");
+        sb.AppendLine();
+
+        // Résumé global
+        var winRate = resolved.Count > 0 ? (double)won.Count / resolved.Count * 100 : 0;
+        var totalStake = (double)resolved.Count;
+        var totalReturn = won.Sum(e => (double)(e.Odds ?? 0m));
+        var roi = totalStake > 0 ? (totalReturn - totalStake) / totalStake * 100 : 0;
+        var avgOdds = resolved.Count > 0 ? resolved.Average(e => (double)(e.Odds ?? 0m)) : 0;
+
+        sb.AppendLine("📈 Résumé global");
+        sb.AppendLine($"• Total publiés : {entries.Count}");
+        sb.AppendLine($"• Résolus : {resolved.Count} ({won.Count} ✅ / {lost.Count} ❌)");
+        if (voidEntries.Count > 0)
+            sb.AppendLine($"• Void : {voidEntries.Count}");
+        sb.AppendLine($"• En attente : {pending.Count}");
+        sb.AppendLine($"• Winrate : {winRate:F1}%");
+        var roiStr = roi >= 0 ? $"+{roi:F1}%" : $"{roi:F1}%";
+        sb.AppendLine($"• ROI : {roiStr}");
+        sb.AppendLine($"• Cote moyenne : {avgOdds:F2}");
+
+        // Par tipster (tous, triés par winrate)
+        var byTipster = resolved
+            .GroupBy(e => e.TipsterName ?? "Inconnu")
+            .Select(g => new
+            {
+                Name = g.Key,
+                Won = g.Count(e => e.Result == "won"),
+                Lost = g.Count(e => e.Result == "lost"),
+                Count = g.Count(),
+                WinRate = (double)g.Count(e => e.Result == "won") / g.Count() * 100,
+                Roi = g.Count() > 0
+                    ? (g.Where(e => e.Result == "won").Sum(e => (double)(e.Odds ?? 0m)) - g.Count()) / g.Count() * 100
+                    : 0
+            })
+            .OrderByDescending(t => t.WinRate)
+            .ThenByDescending(t => t.Count)
+            .ToList();
+
+        if (byTipster.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("👤 Par tipster");
+            foreach (var t in byTipster)
+            {
+                var tRoi = t.Roi >= 0 ? $"+{t.Roi:F1}%" : $"{t.Roi:F1}%";
+                sb.AppendLine($"• {t.Name} : {t.WinRate:F1}% ({t.Won}/{t.Count}) ROI {tRoi}");
+            }
+        }
+
+        // Par type de marché
+        var byMarket = resolved
+            .GroupBy(e =>
+            {
+                var parts = (e.MarketKey ?? "").Split(';');
+                return parts.Length >= 3 ? parts[2] : "?";
+            })
+            .Select(g => new
+            {
+                Type = g.Key switch
+                {
+                    "m" => "1X2",
+                    "ou" => "Over/Under",
+                    "s" => "Handicap",
+                    "tt" => "Team O/U",
+                    _ => g.Key
+                },
+                Won = g.Count(e => e.Result == "won"),
+                Lost = g.Count(e => e.Result == "lost"),
+                Count = g.Count(),
+                WinRate = (double)g.Count(e => e.Result == "won") / g.Count() * 100
+            })
+            .OrderByDescending(m => m.Count)
+            .ToList();
+
+        if (byMarket.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("🎯 Par type de pronostic");
+            foreach (var m in byMarket)
+            {
+                sb.AppendLine($"• {m.Type} : {m.WinRate:F1}% ({m.Won}/{m.Count})");
+            }
+        }
+
+        // Par sport
+        var bySport = resolved
+            .GroupBy(e => e.Sport ?? "Inconnu")
+            .Select(g => new
+            {
+                Sport = g.Key,
+                Won = g.Count(e => e.Result == "won"),
+                Lost = g.Count(e => e.Result == "lost"),
+                Count = g.Count(),
+                WinRate = (double)g.Count(e => e.Result == "won") / g.Count() * 100
+            })
+            .OrderByDescending(s => s.Count)
+            .ToList();
+
+        if (bySport.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine("⚽ Par sport");
+            foreach (var s in bySport)
+            {
+                sb.AppendLine($"• {s.Sport} : {s.WinRate:F1}% ({s.Won}/{s.Count})");
+            }
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
     private static string FormatPick(PendingBet bet)
     {
         var designation = bet.DerivedDesignation;
