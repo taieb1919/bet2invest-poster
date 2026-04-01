@@ -51,8 +51,8 @@ public interface IExtendedBet2InvestClient
     Task<Models.UserStats> GetUserStatsAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// Récupère les paris actuellement placés sur le bankroll via GET /v1/bankrolls/{bankrollId}/bets.
+    /// Récupère les paris pending de l'utilisateur connecté via GET /v1/statistics/{userId}.
     /// Utilisé pour filtrer les pronostics déjà publiés dans /run.
     /// </summary>
-    Task<List<Models.BankrollBet>> GetBankrollBetsAsync(int bankrollId, CancellationToken ct = default);
+    Task<List<Models.PendingBet>> GetOwnPendingBetsAsync(CancellationToken ct = default);
 }

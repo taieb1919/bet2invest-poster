@@ -87,6 +87,16 @@ public class UpcomingBetsFetcher : IUpcomingBetsFetcher
                             }
                         }
 
+                        // Exclure les types de marché non supportés (see #4)
+                        var unsupportedBefore = bets.Count;
+                        bets = bets.Where(b => b.Type != "MULTI_WAY_HEAD_TO_HEAD").ToList();
+                        if (bets.Count < unsupportedBefore)
+                        {
+                            _logger.LogInformation(
+                                "Tipster {Name} : {Excluded} paris MULTI_WAY_HEAD_TO_HEAD exclus (non supporté, see #4)",
+                                tipster.Name, unsupportedBefore - bets.Count);
+                        }
+
                         allBets.AddRange(bets);
                     }
                 }

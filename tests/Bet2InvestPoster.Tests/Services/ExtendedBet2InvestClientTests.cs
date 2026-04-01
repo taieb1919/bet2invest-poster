@@ -42,11 +42,14 @@ public class ExtendedBet2InvestClientTests
             NullLogger<ExtendedBet2InvestClient>.Instance);
     }
 
+    // JWT with sub=42 (header.payload.signature — payload base64 of {"sub": 42, "exp": 9999999999})
+    private const string FakeJwt = "eyJhbGciOiAiSFMyNTYiLCAidHlwIjogIkpXVCJ9.eyJzdWIiOiA0MiwgImV4cCI6IDk5OTk5OTk5OTl9.fakesignature";
+
     private static HttpResponseMessage LoginSuccess(int expiresIn = 3600) =>
         new(HttpStatusCode.OK)
         {
             Content = new StringContent(
-                $@"{{""accessToken"":""fake-token"",""expiresIn"":{expiresIn}}}",
+                $@"{{""accessToken"":""{FakeJwt}"",""expiresIn"":{expiresIn}}}",
                 Encoding.UTF8,
                 "application/json")
         };
@@ -621,43 +624,39 @@ public class ExtendedBet2InvestClientTests
         await Assert.ThrowsAsync<Bet2InvestApiException>(() => client.GetFreeTipstersAsync());
     }
 
-    private static HttpResponseMessage BankrollBetsResponse(IEnumerable<object> bets, int? nextPage = null)
-    {
-        var betsJson = string.Join(",", bets.Select(b => System.Text.Json.JsonSerializer.Serialize(b)));
-        var paginationJson = nextPage.HasValue
-            ? $@",""pagination"":{{""nextPage"":{nextPage}}}"
-            : @",""pagination"":{}";
-        var json = $@"{{""data"":[{betsJson}]{paginationJson}}}";
-        return new HttpResponseMessage(HttpStatusCode.OK)
+    // ─── GetOwnPendingBetsAsync Tests ──────────────────────────────
+
+    private static HttpResponseMessage OwnPendingBetsResponse(string pendingBetsJson) =>
+        new(HttpStatusCode.OK)
         {
-            Content = new StringContent(json, Encoding.UTF8, "application/json")
+            Content = new StringContent(
+                $@"{{""bets"":{{""pending"":{pendingBetsJson},""pendingNumber"":0,""canSeeBets"":true}}}}",
+                Encoding.UTF8,
+                "application/json")
         };
-    }
 
     [Fact]
-    public async Task GetBankrollBetsAsync_ReturnsDeserializedBets()
+    public async Task GetOwnPendingBetsAsync_ReturnsPendingBets()
     {
         var handler = new FakeHttpMessageHandler(req =>
         {
             if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
-            return BankrollBetsResponse(new object[]
-            {
-                new { id = 1, matchupId = "matchA", marketKey = "s;0;m", designation = "home" },
-                new { id = 2, matchupId = "matchB", marketKey = "s;0;ou;2.5", designation = "over" }
-            });
+            // Should call /v1/statistics/42 (userId extracted from JWT sub=42)
+            Assert.Contains("/v1/statistics/42", req.RequestUri!.AbsolutePath);
+            return OwnPendingBetsResponse(
+                @"[{""id"":1,""market"":{""matchupId"":""matchA"",""key"":""s;0;m""}},{""id"":2,""market"":{""matchupId"":""matchB"",""key"":""s;0;ou;2.5""}}]");
         });
 
         var client = CreateClient(handler);
-        var result = await client.GetBankrollBetsAsync(42);
+        var result = await client.GetOwnPendingBetsAsync();
 
         Assert.Equal(2, result.Count);
-        Assert.Equal("matchA", result[0].MatchupId);
-        Assert.Equal("s;0;m", result[0].MarketKey);
-        Assert.Equal("home", result[0].Designation);
+        Assert.Equal("matchA", result[0].Market?.MatchupId);
+        Assert.Equal("s;0;m", result[0].Market?.Key);
     }
 
     [Fact]
-    public async Task GetBankrollBetsAsync_HttpError_ReturnsEmptyList()
+    public async Task GetOwnPendingBetsAsync_HttpError_ReturnsEmptyList()
     {
         var handler = new FakeHttpMessageHandler(req =>
         {
@@ -666,45 +665,22 @@ public class ExtendedBet2InvestClientTests
         });
 
         var client = CreateClient(handler);
-        var result = await client.GetBankrollBetsAsync(42);
+        var result = await client.GetOwnPendingBetsAsync();
 
         Assert.Empty(result);
     }
 
     [Fact]
-    public async Task GetBankrollBetsAsync_Pagination_CollectsAllPages()
-    {
-        var callCount = 0;
-        var handler = new FakeHttpMessageHandler(req =>
-        {
-            if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
-            callCount++;
-            if (callCount == 1)
-                return BankrollBetsResponse(
-                    new object[] { new { id = 1, matchupId = "m1", marketKey = "k1", designation = "home" } },
-                    nextPage: 1);
-            return BankrollBetsResponse(
-                new object[] { new { id = 2, matchupId = "m2", marketKey = "k2", designation = "away" } });
-        });
-
-        var client = CreateClient(handler);
-        var result = await client.GetBankrollBetsAsync(42);
-
-        Assert.Equal(2, callCount);
-        Assert.Equal(2, result.Count);
-    }
-
-    [Fact]
-    public async Task GetBankrollBetsAsync_EmptyData_ReturnsEmptyList()
+    public async Task GetOwnPendingBetsAsync_NoPendingBets_ReturnsEmptyList()
     {
         var handler = new FakeHttpMessageHandler(req =>
         {
             if (req.RequestUri?.AbsolutePath == "/auth/login") return LoginSuccess();
-            return BankrollBetsResponse(Array.Empty<object>());
+            return OwnPendingBetsResponse("[]");
         });
 
         var client = CreateClient(handler);
-        var result = await client.GetBankrollBetsAsync(42);
+        var result = await client.GetOwnPendingBetsAsync();
 
         Assert.Empty(result);
     }

@@ -89,8 +89,8 @@ public class ResultTrackerTests
         }
         public Task<Models.UserStats> GetUserStatsAsync(CancellationToken ct = default)
             => Task.FromResult(new Models.UserStats());
-        public Task<List<Models.BankrollBet>> GetBankrollBetsAsync(int bankrollId, CancellationToken ct = default)
-            => Task.FromResult(new List<Models.BankrollBet>());
+        public Task<List<Models.PendingBet>> GetOwnPendingBetsAsync(CancellationToken ct = default)
+            => Task.FromResult(new List<Models.PendingBet>());
     }
 
     // ─── Helper ───────────────────────────────────────────────────────────────

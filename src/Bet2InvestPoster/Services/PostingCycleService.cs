@@ -73,30 +73,30 @@ public class PostingCycleService : IPostingCycleService
             // 3. Candidats (avant filtrage — l'utilisateur sélectionne manuellement via preview)
             var candidates = await _upcomingBetsFetcher.FetchAllAsync(tipsters, ct);
 
-            // 4. Filtrage API : exclure les paris déjà publiés sur le bankroll
-            HashSet<string> publishedOnBankroll;
+            // 4. Filtrage API : exclure les paris déjà publiés par l'utilisateur
+            HashSet<string> ownPendingKeys;
             try
             {
-                var bankrollId = int.Parse(_options.BankrollId);
-                var bankrollBets = await _client.GetBankrollBetsAsync(bankrollId, ct);
-                publishedOnBankroll = bankrollBets
-                    .Select(b => b.DeduplicationKey)
+                var ownBets = await _client.GetOwnPendingBetsAsync(ct);
+                ownPendingKeys = ownBets
+                    .Where(b => b.DeduplicationKey != null)
+                    .Select(b => b.DeduplicationKey!)
                     .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
                 _logger.LogInformation(
-                    "Filtrage API : {BankrollCount} paris sur le bankroll, {CandidateCount} candidats",
-                    publishedOnBankroll.Count, candidates.Count);
+                    "Filtrage API : {OwnCount} paris propres pending, {CandidateCount} candidats",
+                    ownPendingKeys.Count, candidates.Count);
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex,
-                    "Impossible de récupérer les paris du bankroll — fallback : aucun filtrage API");
-                publishedOnBankroll = [];
+                    "Impossible de récupérer les paris propres — fallback : aucun filtrage API");
+                ownPendingKeys = [];
             }
 
             // Candidates without DeduplicationKey (no market) pass through — cannot deduplicate without a key
-            var filtered = publishedOnBankroll.Count > 0
-                ? candidates.Where(c => c.DeduplicationKey == null || !publishedOnBankroll.Contains(c.DeduplicationKey)).ToList()
+            var filtered = ownPendingKeys.Count > 0
+                ? candidates.Where(c => c.DeduplicationKey == null || !ownPendingKeys.Contains(c.DeduplicationKey)).ToList()
                 : candidates;
 
             if (candidates.Count != filtered.Count)
@@ -110,7 +110,7 @@ public class PostingCycleService : IPostingCycleService
             {
                 ScrapedCount = candidates.Count,
                 FilteredCount = filtered.Count,
-                FiltersWereActive = HasActiveFilters() || publishedOnBankroll.Count > 0
+                FiltersWereActive = HasActiveFilters() || ownPendingKeys.Count > 0
             };
 
             return (filtered, partialResult);

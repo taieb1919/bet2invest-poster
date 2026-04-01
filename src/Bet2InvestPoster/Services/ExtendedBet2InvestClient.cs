@@ -462,42 +462,37 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
         }
     }
 
-    // ─── Bankroll Bets (GET /v1/bankrolls/{bankrollId}/bets) ────────────
+    // ─── Own Pending Bets (GET /v1/statistics/{userId}) ────────────
 
-    public async Task<List<BankrollBet>> GetBankrollBetsAsync(int bankrollId, CancellationToken ct = default)
+    public async Task<List<PendingBet>> GetOwnPendingBetsAsync(CancellationToken ct = default)
     {
         await EnsureAuthenticatedAsync(ct);
 
         using (LogContext.PushProperty("Step", "BankrollBets"))
         {
-            var allBets = new List<BankrollBet>();
-            var page = 0;
-            const int maxPages = 20;
-
-            while (page < maxPages)
+            var userId = ExtractUserIdFromToken();
+            if (userId == null)
             {
-                await Task.Delay(_options.RequestDelayMs, ct);
-
-                var url = $"/v1/bankrolls/{bankrollId}/bets?page={page}";
-                var response = await _http.GetAsync(url, ct);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("GET bankroll bets failed: HTTP {Status}", (int)response.StatusCode);
-                    break;
-                }
-
-                var result = await response.Content.ReadFromJsonAsync<BankrollBetsResponse>(JsonOptions, ct);
-                if (result?.Data == null || result.Data.Count == 0) break;
-
-                allBets.AddRange(result.Data);
-
-                if (result.Pagination?.NextPage == null || result.Pagination.NextPage <= page) break;
-                page++;
+                _logger.LogWarning("Impossible d'extraire le userId du token — pas de filtrage");
+                return [];
             }
 
-            _logger.LogInformation("Bankroll {Id} : {Count} paris récupérés", bankrollId, allBets.Count);
-            return allBets;
+            await Task.Delay(_options.RequestDelayMs, ct);
+
+            var url = $"/v1/statistics/{userId}";
+            var response = await _http.GetAsync(url, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("GET own pending bets failed: HTTP {Status}", (int)response.StatusCode);
+                return [];
+            }
+
+            var statistics = await response.Content.ReadFromJsonAsync<StatisticsResponse>(JsonOptions, ct);
+            var bets = statistics?.Bets?.Pending ?? [];
+
+            _logger.LogInformation("Paris propres récupérés : {Count} paris pending", bets.Count);
+            return bets;
         }
     }
 
@@ -611,12 +606,4 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
         public int? NextPage { get; set; }
     }
 
-    private class BankrollBetsResponse
-    {
-        [JsonPropertyName("data")]
-        public List<BankrollBet>? Data { get; set; }
-
-        [JsonPropertyName("pagination")]
-        public ApiPagination? Pagination { get; set; }
-    }
 }

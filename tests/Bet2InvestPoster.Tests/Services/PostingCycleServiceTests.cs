@@ -20,15 +20,15 @@ public class PostingCycleServiceTests
 
     private sealed class FakeExtendedClient : IExtendedBet2InvestClient
     {
-        private readonly List<BankrollBet>? _bankrollBetsToReturn;
-        private readonly bool _throwOnGetBankrollBets;
+        private readonly List<PendingBet>? _ownPendingBetsToReturn;
+        private readonly bool _throwOnGetOwnPendingBets;
 
         public FakeExtendedClient(
-            List<BankrollBet>? bankrollBetsToReturn = null,
-            bool throwOnGetBankrollBets = false)
+            List<PendingBet>? ownPendingBetsToReturn = null,
+            bool throwOnGetOwnPendingBets = false)
         {
-            _bankrollBetsToReturn = bankrollBetsToReturn;
-            _throwOnGetBankrollBets = throwOnGetBankrollBets;
+            _ownPendingBetsToReturn = ownPendingBetsToReturn;
+            _throwOnGetOwnPendingBets = throwOnGetOwnPendingBets;
         }
 
         public bool IsAuthenticated => true;
@@ -44,11 +44,11 @@ public class PostingCycleServiceTests
             => Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
         public Task<Models.UserStats> GetUserStatsAsync(CancellationToken ct = default)
             => Task.FromResult(new Models.UserStats());
-        public Task<List<BankrollBet>> GetBankrollBetsAsync(int bankrollId, CancellationToken ct = default)
+        public Task<List<PendingBet>> GetOwnPendingBetsAsync(CancellationToken ct = default)
         {
-            if (_throwOnGetBankrollBets)
+            if (_throwOnGetOwnPendingBets)
                 throw new HttpRequestException("API unavailable");
-            return Task.FromResult(_bankrollBetsToReturn ?? new List<BankrollBet>());
+            return Task.FromResult(_ownPendingBetsToReturn ?? new List<PendingBet>());
         }
     }
 
@@ -428,10 +428,10 @@ public class PostingCycleServiceTests
     [Fact]
     public async Task PrepareCycleAsync_FiltersAlreadyPublishedBets()
     {
-        var bankrollBets = new List<BankrollBet>
+        var ownPendingBets = new List<PendingBet>
         {
-            new() { Id = 1, MatchupId = "matchA", MarketKey = "s;0;m", Designation = "home" },
-            new() { Id = 2, MatchupId = "matchB", MarketKey = "s;0;ou;2.5", Designation = "over" },
+            MakeBetWithKey(1, "matchA", "s;0;m", "home"),
+            MakeBetWithKey(2, "matchB", "s;0;ou;2.5", "over"),
         };
 
         var candidates = new List<PendingBet>
@@ -441,7 +441,7 @@ public class PostingCycleServiceTests
             MakeBetWithKey(30, "matchC", "s;0;m", "away"),
         };
 
-        var client = new FakeExtendedClient(bankrollBetsToReturn: bankrollBets);
+        var client = new FakeExtendedClient(ownPendingBetsToReturn: ownPendingBets);
         var fetcher = new FakeUpcomingBetsFetcher { BetsToReturn = candidates };
         var options = new PosterOptions { BankrollId = "42" };
         var service = CreateService(client: client, fetcher: fetcher, options: options);
@@ -464,7 +464,7 @@ public class PostingCycleServiceTests
             MakeBetWithKey(20, "matchB", "s;0;m", "away"),
         };
 
-        var client = new FakeExtendedClient(throwOnGetBankrollBets: true);
+        var client = new FakeExtendedClient(throwOnGetOwnPendingBets: true);
         var fetcher = new FakeUpcomingBetsFetcher { BetsToReturn = candidates };
         var options = new PosterOptions { BankrollId = "42" };
         var service = CreateService(client: client, fetcher: fetcher, options: options);
@@ -484,7 +484,7 @@ public class PostingCycleServiceTests
             MakeBetWithKey(10, "matchA", "s;0;m", "home"),
         };
 
-        var client = new FakeExtendedClient(bankrollBetsToReturn: []);
+        var client = new FakeExtendedClient(ownPendingBetsToReturn: []);
         var fetcher = new FakeUpcomingBetsFetcher { BetsToReturn = candidates };
         var options = new PosterOptions { BankrollId = "42" };
         var service = CreateService(client: client, fetcher: fetcher, options: options);
@@ -496,39 +496,4 @@ public class PostingCycleServiceTests
         Assert.Single(bets);
     }
 
-    [Fact]
-    public void BankrollBet_DeduplicationKey_MatchesHistoryEntryFormat()
-    {
-        var bankrollBet = new BankrollBet
-        {
-            Id = 1,
-            MatchupId = "match123",
-            MarketKey = "s;0;m",
-            Designation = "Home"
-        };
-
-        var historyEntry = new HistoryEntry
-        {
-            BetId = 1,
-            MatchupId = "match123",
-            MarketKey = "s;0;m",
-            Designation = "home"
-        };
-
-        Assert.Equal(historyEntry.DeduplicationKey, bankrollBet.DeduplicationKey);
-    }
-
-    [Fact]
-    public void BankrollBet_DeduplicationKey_NullDesignation()
-    {
-        var bet = new BankrollBet
-        {
-            Id = 1,
-            MatchupId = "match123",
-            MarketKey = "s;0;m",
-            Designation = null
-        };
-
-        Assert.Contains("match123|s;0;m|", bet.DeduplicationKey);
-    }
 }
