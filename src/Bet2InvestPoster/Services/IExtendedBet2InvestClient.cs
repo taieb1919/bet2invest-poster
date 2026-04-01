@@ -49,4 +49,10 @@ public interface IExtendedBet2InvestClient
     /// Le userId est extrait du JWT token.
     /// </summary>
     Task<Models.UserStats> GetUserStatsAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Récupère les paris actuellement placés sur le bankroll via GET /v1/bankrolls/{bankrollId}/bets.
+    /// Utilisé pour filtrer les pronostics déjà publiés dans /run.
+    /// </summary>
+    Task<List<Models.BankrollBet>> GetBankrollBetsAsync(int bankrollId, CancellationToken ct = default);
 }

@@ -20,6 +20,17 @@ public class PostingCycleServiceTests
 
     private sealed class FakeExtendedClient : IExtendedBet2InvestClient
     {
+        private readonly List<BankrollBet>? _bankrollBetsToReturn;
+        private readonly bool _throwOnGetBankrollBets;
+
+        public FakeExtendedClient(
+            List<BankrollBet>? bankrollBetsToReturn = null,
+            bool throwOnGetBankrollBets = false)
+        {
+            _bankrollBetsToReturn = bankrollBetsToReturn;
+            _throwOnGetBankrollBets = throwOnGetBankrollBets;
+        }
+
         public bool IsAuthenticated => true;
         public Task LoginAsync(CancellationToken ct = default) => Task.CompletedTask;
         public Task ResolveTipsterIdsAsync(List<TipsterConfig> tipsters, CancellationToken ct = default) => Task.CompletedTask;
@@ -33,6 +44,12 @@ public class PostingCycleServiceTests
             => Task.FromResult(new List<JTDev.Bet2InvestScraper.Models.SettledBet>());
         public Task<Models.UserStats> GetUserStatsAsync(CancellationToken ct = default)
             => Task.FromResult(new Models.UserStats());
+        public Task<List<BankrollBet>> GetBankrollBetsAsync(int bankrollId, CancellationToken ct = default)
+        {
+            if (_throwOnGetBankrollBets)
+                throw new HttpRequestException("API unavailable");
+            return Task.FromResult(_bankrollBetsToReturn ?? new List<BankrollBet>());
+        }
     }
 
     private sealed class FakeHistoryManager : IHistoryManager
@@ -153,6 +170,7 @@ public class PostingCycleServiceTests
     // ─── Helper ───────────────────────────────────────────────────────────────
 
     private static PostingCycleService CreateService(
+        FakeExtendedClient?       client       = null,
         FakeHistoryManager?      history      = null,
         FakeTipsterService?      tipsters     = null,
         FakeUpcomingBetsFetcher? fetcher      = null,
@@ -163,7 +181,7 @@ public class PostingCycleServiceTests
         FakeResultTracker?       resultTracker = null,
         PosterOptions?           options      = null)
         => new PostingCycleService(
-            new FakeExtendedClient(),
+            client        ?? new FakeExtendedClient(),
             history       ?? new FakeHistoryManager(),
             tipsters      ?? new FakeTipsterService(),
             fetcher       ?? new FakeUpcomingBetsFetcher(),
@@ -185,7 +203,7 @@ public class PostingCycleServiceTests
         var fetcher   = new FakeUpcomingBetsFetcher(_callOrder);
         var selector  = new FakeBetSelector(_callOrder);
         var publisher = new FakeBetPublisher(_callOrder);
-        var service   = CreateService(history, tipsters, fetcher, selector, publisher);
+        var service   = CreateService(history: history, tipsters: tipsters, fetcher: fetcher, selector: selector, publisher: publisher);
 
         await service.RunCycleAsync();
 
@@ -202,7 +220,7 @@ public class PostingCycleServiceTests
         var fetcher   = new FakeUpcomingBetsFetcher();
         var selector  = new FakeBetSelector();
         var publisher = new FakeBetPublisher();
-        var service   = CreateService(history, tipsters, fetcher, selector, publisher);
+        var service   = CreateService(history: history, tipsters: tipsters, fetcher: fetcher, selector: selector, publisher: publisher);
 
         await service.RunCycleAsync();
 
@@ -380,5 +398,137 @@ public class PostingCycleServiceTests
         using var scope    = provider.CreateScope();
         var cycleService = scope.ServiceProvider.GetRequiredService<IPostingCycleService>();
         Assert.NotNull(cycleService);
+    }
+
+    // ─── PrepareCycleAsync — Bankroll API Filtering Tests ──────────────
+
+    private static PendingBet MakeBetWithKey(int id, string matchupId, string marketKey, string? designation)
+    {
+        var bet = new PendingBet { Id = id };
+        bet.Market = new PendingBetMarket
+        {
+            MatchupId = matchupId,
+            Key = marketKey
+        };
+        bet.Team = designation switch
+        {
+            "home" => "TEAM1",
+            "away" => "TEAM2",
+            _ => null
+        };
+        bet.Side = designation switch
+        {
+            "over" => "OVER",
+            "under" => "UNDER",
+            _ => null
+        };
+        return bet;
+    }
+
+    [Fact]
+    public async Task PrepareCycleAsync_FiltersAlreadyPublishedBets()
+    {
+        var bankrollBets = new List<BankrollBet>
+        {
+            new() { Id = 1, MatchupId = "matchA", MarketKey = "s;0;m", Designation = "home" },
+            new() { Id = 2, MatchupId = "matchB", MarketKey = "s;0;ou;2.5", Designation = "over" },
+        };
+
+        var candidates = new List<PendingBet>
+        {
+            MakeBetWithKey(10, "matchA", "s;0;m", "home"),
+            MakeBetWithKey(20, "matchB", "s;0;ou;2.5", "over"),
+            MakeBetWithKey(30, "matchC", "s;0;m", "away"),
+        };
+
+        var client = new FakeExtendedClient(bankrollBetsToReturn: bankrollBets);
+        var fetcher = new FakeUpcomingBetsFetcher { BetsToReturn = candidates };
+        var options = new PosterOptions { BankrollId = "42" };
+        var service = CreateService(client: client, fetcher: fetcher, options: options);
+
+        var (bets, result) = await service.PrepareCycleAsync();
+
+        Assert.Equal(3, result.ScrapedCount);
+        Assert.Equal(1, result.FilteredCount);
+        Assert.Single(bets);
+        Assert.Equal(30, bets[0].Id);
+        Assert.True(result.FiltersWereActive);
+    }
+
+    [Fact]
+    public async Task PrepareCycleAsync_FallbackOnApiError_ReturnsAllCandidates()
+    {
+        var candidates = new List<PendingBet>
+        {
+            MakeBetWithKey(10, "matchA", "s;0;m", "home"),
+            MakeBetWithKey(20, "matchB", "s;0;m", "away"),
+        };
+
+        var client = new FakeExtendedClient(throwOnGetBankrollBets: true);
+        var fetcher = new FakeUpcomingBetsFetcher { BetsToReturn = candidates };
+        var options = new PosterOptions { BankrollId = "42" };
+        var service = CreateService(client: client, fetcher: fetcher, options: options);
+
+        var (bets, result) = await service.PrepareCycleAsync();
+
+        Assert.Equal(2, result.ScrapedCount);
+        Assert.Equal(2, result.FilteredCount);
+        Assert.Equal(2, bets.Count);
+    }
+
+    [Fact]
+    public async Task PrepareCycleAsync_NoBankrollBets_ReturnsAllCandidates()
+    {
+        var candidates = new List<PendingBet>
+        {
+            MakeBetWithKey(10, "matchA", "s;0;m", "home"),
+        };
+
+        var client = new FakeExtendedClient(bankrollBetsToReturn: []);
+        var fetcher = new FakeUpcomingBetsFetcher { BetsToReturn = candidates };
+        var options = new PosterOptions { BankrollId = "42" };
+        var service = CreateService(client: client, fetcher: fetcher, options: options);
+
+        var (bets, result) = await service.PrepareCycleAsync();
+
+        Assert.Equal(1, result.ScrapedCount);
+        Assert.Equal(1, result.FilteredCount);
+        Assert.Single(bets);
+    }
+
+    [Fact]
+    public void BankrollBet_DeduplicationKey_MatchesHistoryEntryFormat()
+    {
+        var bankrollBet = new BankrollBet
+        {
+            Id = 1,
+            MatchupId = "match123",
+            MarketKey = "s;0;m",
+            Designation = "Home"
+        };
+
+        var historyEntry = new HistoryEntry
+        {
+            BetId = 1,
+            MatchupId = "match123",
+            MarketKey = "s;0;m",
+            Designation = "home"
+        };
+
+        Assert.Equal(historyEntry.DeduplicationKey, bankrollBet.DeduplicationKey);
+    }
+
+    [Fact]
+    public void BankrollBet_DeduplicationKey_NullDesignation()
+    {
+        var bet = new BankrollBet
+        {
+            Id = 1,
+            MatchupId = "match123",
+            MarketKey = "s;0;m",
+            Designation = null
+        };
+
+        Assert.Contains("match123|s;0;m|", bet.DeduplicationKey);
     }
 }

@@ -73,14 +73,47 @@ public class PostingCycleService : IPostingCycleService
             // 3. Candidats (avant filtrage — l'utilisateur sélectionne manuellement via preview)
             var candidates = await _upcomingBetsFetcher.FetchAllAsync(tipsters, ct);
 
+            // 4. Filtrage API : exclure les paris déjà publiés sur le bankroll
+            HashSet<string> publishedOnBankroll;
+            try
+            {
+                var bankrollId = int.Parse(_options.BankrollId);
+                var bankrollBets = await _client.GetBankrollBetsAsync(bankrollId, ct);
+                publishedOnBankroll = bankrollBets
+                    .Select(b => b.DeduplicationKey)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                _logger.LogInformation(
+                    "Filtrage API : {BankrollCount} paris sur le bankroll, {CandidateCount} candidats",
+                    publishedOnBankroll.Count, candidates.Count);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Impossible de récupérer les paris du bankroll — fallback : aucun filtrage API");
+                publishedOnBankroll = [];
+            }
+
+            // Candidates without DeduplicationKey (no market) pass through — cannot deduplicate without a key
+            var filtered = publishedOnBankroll.Count > 0
+                ? candidates.Where(c => c.DeduplicationKey == null || !publishedOnBankroll.Contains(c.DeduplicationKey)).ToList()
+                : candidates;
+
+            if (candidates.Count != filtered.Count)
+            {
+                _logger.LogInformation(
+                    "{ExcludedCount} pronostic(s) exclus par filtrage API sur {CandidateCount} candidats",
+                    candidates.Count - filtered.Count, candidates.Count);
+            }
+
             var partialResult = new CycleResult
             {
                 ScrapedCount = candidates.Count,
-                FilteredCount = candidates.Count,
-                FiltersWereActive = HasActiveFilters()
+                FilteredCount = filtered.Count,
+                FiltersWereActive = HasActiveFilters() || publishedOnBankroll.Count > 0
             };
 
-            return (candidates, partialResult);
+            return (filtered, partialResult);
         }
     }
 

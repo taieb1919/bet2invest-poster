@@ -462,6 +462,45 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
         }
     }
 
+    // ─── Bankroll Bets (GET /v1/bankrolls/{bankrollId}/bets) ────────────
+
+    public async Task<List<BankrollBet>> GetBankrollBetsAsync(int bankrollId, CancellationToken ct = default)
+    {
+        await EnsureAuthenticatedAsync(ct);
+
+        using (LogContext.PushProperty("Step", "BankrollBets"))
+        {
+            var allBets = new List<BankrollBet>();
+            var page = 0;
+            const int maxPages = 20;
+
+            while (page < maxPages)
+            {
+                await Task.Delay(_options.RequestDelayMs, ct);
+
+                var url = $"/v1/bankrolls/{bankrollId}/bets?page={page}";
+                var response = await _http.GetAsync(url, ct);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("GET bankroll bets failed: HTTP {Status}", (int)response.StatusCode);
+                    break;
+                }
+
+                var result = await response.Content.ReadFromJsonAsync<BankrollBetsResponse>(JsonOptions, ct);
+                if (result?.Data == null || result.Data.Count == 0) break;
+
+                allBets.AddRange(result.Data);
+
+                if (result.Pagination?.NextPage == null || result.Pagination.NextPage <= page) break;
+                page++;
+            }
+
+            _logger.LogInformation("Bankroll {Id} : {Count} paris récupérés", bankrollId, allBets.Count);
+            return allBets;
+        }
+    }
+
     private int? ExtractUserIdFromToken()
     {
         if (string.IsNullOrEmpty(_accessToken))
@@ -570,5 +609,14 @@ public class ExtendedBet2InvestClient : IExtendedBet2InvestClient, IDisposable
     {
         [JsonPropertyName("nextPage")]
         public int? NextPage { get; set; }
+    }
+
+    private class BankrollBetsResponse
+    {
+        [JsonPropertyName("data")]
+        public List<BankrollBet>? Data { get; set; }
+
+        [JsonPropertyName("pagination")]
+        public ApiPagination? Pagination { get; set; }
     }
 }

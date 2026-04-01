@@ -280,6 +280,13 @@ public class MessageFormatter : IMessageFormatter
         var sb = new StringBuilder();
         sb.AppendLine($"👁 Aperçu — {selectedCount}/{session.Bets.Count} sélectionnés");
         sb.AppendLine($"({session.PartialCycleResult.ScrapedCount} scrapés, {session.PartialCycleResult.FilteredCount} filtrés)");
+
+        if (session.PartialCycleResult.ScrapedCount > session.PartialCycleResult.FilteredCount)
+        {
+            var excluded = session.PartialCycleResult.ScrapedCount - session.PartialCycleResult.FilteredCount;
+            sb.AppendLine($"({excluded} pronostic(s) déjà sur bet2invest exclus)");
+        }
+
         sb.AppendLine();
 
         for (var i = 0; i < session.Bets.Count; i++)
