@@ -138,6 +138,7 @@ builder.Services.AddSingleton<ICommandHandler, ScheduleCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, TipstersCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, ReportCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, OddsCommandHandler>();
+builder.Services.AddSingleton<ICommandHandler, StakeCommandHandler>();
 builder.Services.AddSingleton<ICommandHandler, HelpCommandHandler>();
 
 // TelegramBotService: HostedService — bot long polling running in background.

@@ -1,5 +1,11 @@
 namespace Bet2InvestPoster.Configuration;
 
+public class StakeRule
+{
+    public decimal? MaxOdds { get; set; }
+    public decimal Units { get; set; }
+}
+
 public class PosterOptions
 {
     public const string SectionName = "Poster";
@@ -30,12 +36,32 @@ public class PosterOptions
     /// </summary>
     public int LogRetentionDays { get; set; } = 30;
 
-    public decimal? MinOdds { get; set; }      // null = pas de filtrage
-    public decimal? MaxOdds { get; set; }      // null = pas de filtrage
-    public int? EventHorizonHours { get; set; } // null = pas de filtrage
+    public decimal? MinOdds { get; set; }
+    public decimal? MaxOdds { get; set; }
+    public int? EventHorizonHours { get; set; }
 
     /// <summary>Mode de sélection des pronostics : "random" (défaut) ou "intelligent" (scoring multi-critères).</summary>
     public string SelectionMode { get; set; } = "random";
+
+    public List<StakeRule> StakeRules { get; set; } = [];
+
+    public decimal ResolveStake(decimal odds)
+    {
+        if (StakeRules is not { Count: > 0 })
+            return 1m;
+
+        var sorted = StakeRules
+            .OrderBy(r => r.MaxOdds ?? decimal.MaxValue)
+            .ToList();
+
+        foreach (var rule in sorted)
+        {
+            if (rule.MaxOdds.HasValue && odds < rule.MaxOdds.Value)
+                return rule.Units;
+        }
+
+        return sorted.Last().Units;
+    }
 
     public int CircuitBreakerFailureThreshold { get; set; } = 3;
     public int CircuitBreakerDurationSeconds { get; set; } = 300;

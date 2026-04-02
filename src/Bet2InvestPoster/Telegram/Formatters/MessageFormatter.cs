@@ -1,12 +1,22 @@
 using System.Text;
+using Bet2InvestPoster.Configuration;
 using Bet2InvestPoster.Models;
 using Bet2InvestPoster.Services;
+using Microsoft.Extensions.Options;
 
 namespace Bet2InvestPoster.Telegram.Formatters;
 
 public class MessageFormatter : IMessageFormatter
 {
     private const int MaxDisplayedBets = 15;
+    private readonly PosterOptions _options;
+
+    public MessageFormatter() : this(Microsoft.Extensions.Options.Options.Create(new Configuration.PosterOptions())) { }
+
+    public MessageFormatter(IOptions<PosterOptions> options)
+    {
+        _options = options.Value;
+    }
     public string FormatHistory(List<HistoryEntry> entries)
     {
         if (entries.Count == 0)
@@ -31,7 +41,7 @@ public class MessageFormatter : IMessageFormatter
                     ? entry.MatchDescription
                     : $"betId: {entry.BetId}";
                 var pick = FormatHistoryPick(entry);
-                var odds = entry.Odds.HasValue ? $" @ {entry.Odds.Value:F2}" : "";
+                var odds = entry.Odds.HasValue ? $" @ {entry.Odds.Value:F2} — {_options.ResolveStake(entry.Odds.Value)}u" : "";
                 sb.AppendLine($"  • {time} — {desc} — {pick}{odds}");
             }
         }
@@ -88,6 +98,7 @@ public class MessageFormatter : IMessageFormatter
         sb.AppendLine("  /report — rapport de performances");
         sb.AppendLine("  /schedule — configurer l'horaire");
         sb.AppendLine("  /tipsters — gérer les tipsters");
+        sb.AppendLine("  /stake — afficher la grille de stake");
         sb.AppendLine();
         if (apiConnected)
             sb.Append("💡 Envoyez /run pour tester une première publication, ou /status pour vérifier l'état.");
@@ -265,7 +276,7 @@ public class MessageFormatter : IMessageFormatter
                 ? $"{bet.Event.Home} vs {bet.Event.Away}"
                 : "(sans description)";
             var tipster = bet.TipsterUsername ?? "inconnu";
-            sb.AppendLine($"• {matchDesc} — {bet.Price:F2} ({tipster})");
+            sb.AppendLine($"• {matchDesc} — {bet.Price:F2} — {_options.ResolveStake(bet.Price)}u ({tipster})");
         }
 
         if (bets.Count > MaxDisplayedBets)
@@ -298,7 +309,7 @@ public class MessageFormatter : IMessageFormatter
                 : "(sans description)";
             var pick = FormatPick(bet);
             var tipster = bet.TipsterUsername ?? "inconnu";
-            sb.AppendLine($"{icon} {i + 1}. {matchDesc} — {pick} @ {bet.Price:F2} ({tipster})");
+            sb.AppendLine($"{icon} {i + 1}. {matchDesc} — {pick} @ {bet.Price:F2} — {_options.ResolveStake(bet.Price)}u ({tipster})");
         }
 
         return sb.ToString().TrimEnd();

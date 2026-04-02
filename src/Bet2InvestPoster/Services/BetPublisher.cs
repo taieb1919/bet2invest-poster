@@ -81,8 +81,7 @@ public class BetPublisher : IBetPublisher
                     MarketKey    = bet.Market.Key,
                     Designation  = designation,
                     Type         = "straight",
-                    // Toujours 1 unit : on ne suit pas le staking du tipster — choix produit pour limiter l'exposition
-                    Units        = 1m,
+                    Units        = _options.ResolveStake(bet.Price),
                     Price        = marketPrice.Price,
                     Points       = marketPrice.Points,
                     Invisible    = false
