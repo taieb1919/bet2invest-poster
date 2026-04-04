@@ -97,6 +97,27 @@ public class BetPublisher : IBetPublisher
                 catch (PublishException pex)
                 {
                     _logger.LogWarning("Bet#{BetId} publication échouée ({StatusCode}), skip", bet.Id, pex.HttpStatusCode);
+
+                    // Enregistrer les échecs 400 "Market is not open" dans l'historique
+                    // pour éviter de retenter le même bet à chaque cycle
+                    if (pex.HttpStatusCode == 400)
+                    {
+                        await _historyManager.RecordAsync(new HistoryEntry
+                        {
+                            BetId            = bet.Id,
+                            MatchupId        = bet.Market.MatchupId,
+                            MarketKey        = bet.Market.Key,
+                            Designation      = designation,
+                            PublishedAt      = _timeProvider.GetUtcNow().UtcDateTime,
+                            MatchDescription = bet.Event != null ? $"{bet.Event.Home} vs {bet.Event.Away}" : $"Bet#{bet.Id}",
+                            TipsterUrl       = null,
+                            Odds             = bet.Price > 0 ? (decimal?)bet.Price : null,
+                            Sport            = bet.Sport?.Name,
+                            TipsterName      = bet.TipsterUsername,
+                            Result           = "market_closed"
+                        }, ct);
+                    }
+
                     continue;
                 }
 

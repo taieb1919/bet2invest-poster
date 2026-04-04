@@ -103,9 +103,9 @@ public class MessageFormatterCycleSuccessTests
 
         var message = _formatter.FormatCycleSuccess(result);
 
-        Assert.Contains("• Arsenal vs Man City — 2.50 — 1u (john_tipster)", message);
-        Assert.Contains("• Real Madrid vs Barcelona — 1.85 — 1u (alice_pro)", message);
-        Assert.Contains("• PSG vs Lyon — 3.10 — 1u (bet_master)", message);
+        Assert.Contains("• ⏳ Arsenal vs Man City — 2.50 — 1u (john_tipster)", message);
+        Assert.Contains("• ⏳ Real Madrid vs Barcelona — 1.85 — 1u (alice_pro)", message);
+        Assert.Contains("• ⏳ PSG vs Lyon — 3.10 — 1u (bet_master)", message);
         Assert.StartsWith("✅ 3 pronostics publiés sur 45 scrapés.", message);
     }
 
@@ -128,8 +128,8 @@ public class MessageFormatterCycleSuccessTests
         var message = _formatter.FormatCycleSuccess(result);
 
         Assert.StartsWith("✅ 2/12 filtrés sur 45 scrapés.", message);
-        Assert.Contains("• Arsenal vs Man City — 2.50 — 1u (john_tipster)", message);
-        Assert.Contains("• PSG vs Lyon — 3.10 — 1u (bet_master)", message);
+        Assert.Contains("• ⏳ Arsenal vs Man City — 2.50 — 1u (john_tipster)", message);
+        Assert.Contains("• ⏳ PSG vs Lyon — 3.10 — 1u (bet_master)", message);
     }
 
     [Fact]
@@ -172,8 +172,8 @@ public class MessageFormatterCycleSuccessTests
 
         var message = _formatter.FormatCycleSuccess(result);
 
-        Assert.Contains("• (sans description) — 1.85 — 1u (alice_pro)", message);
-        Assert.Contains("• Arsenal vs Man City — 2.50 — 1u (john_tipster)", message);
+        Assert.Contains("• ⏳ (sans description) — 1.85 — 1u (alice_pro)", message);
+        Assert.Contains("• ⏳ Arsenal vs Man City — 2.50 — 1u (john_tipster)", message);
     }
 
     [Fact]
@@ -194,7 +194,7 @@ public class MessageFormatterCycleSuccessTests
 
         var message = _formatter.FormatCycleSuccess(result);
 
-        Assert.Contains("• Team A vs Team B — 2.00 — 1u (inconnu)", message);
+        Assert.Contains("• ⏳ Team A vs Team B — 2.00 — 1u (inconnu)", message);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class MessageFormatterCycleSuccessTests
 
         var message = _formatter.FormatCycleSuccess(result);
 
-        Assert.Contains("• (sans description) — 1.90 — 1u (tipster)", message);
+        Assert.Contains("• ⏳ (sans description) — 1.90 — 1u (tipster)", message);
     }
 
     [Fact]

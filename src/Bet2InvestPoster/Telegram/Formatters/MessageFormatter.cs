@@ -275,8 +275,9 @@ public class MessageFormatter : IMessageFormatter
             var matchDesc = bet.Event?.Home != null && bet.Event?.Away != null
                 ? $"{bet.Event.Home} vs {bet.Event.Away}"
                 : "(sans description)";
+            var liveIcon = bet.IsLive ? "🔴" : "⏳";
             var tipster = bet.TipsterUsername ?? "inconnu";
-            sb.AppendLine($"• {matchDesc} — {bet.Price:F2} — {_options.ResolveStake(bet.Price)}u ({tipster})");
+            sb.AppendLine($"• {liveIcon} {matchDesc} — {bet.Price:F2} — {_options.ResolveStake(bet.Price)}u ({tipster})");
         }
 
         if (bets.Count > MaxDisplayedBets)
@@ -308,8 +309,9 @@ public class MessageFormatter : IMessageFormatter
                 ? $"{bet.Event.Home} vs {bet.Event.Away}"
                 : "(sans description)";
             var pick = FormatPick(bet);
+            var liveIcon = bet.IsLive ? " 🔴" : "";
             var tipster = bet.TipsterUsername ?? "inconnu";
-            sb.AppendLine($"{icon} {i + 1}. {matchDesc} — {pick} @ {bet.Price:F2} — {_options.ResolveStake(bet.Price)}u ({tipster})");
+            sb.AppendLine($"{icon} {i + 1}. {matchDesc}{liveIcon} — {pick} @ {bet.Price:F2} — {_options.ResolveStake(bet.Price)}u ({tipster})");
         }
 
         return sb.ToString().TrimEnd();
